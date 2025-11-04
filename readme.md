@@ -17,9 +17,9 @@ El propósito principal del proyecto es demostrar el uso, análisis e implementa
 
 ### 🛠️ Tecnologías Utilizadas
 
-- Lenguaje de programación: **Java / Node.js / Spring Boot** *(ajusta según tu caso)*
-- Base de datos: **MySQL / PostgreSQL**
-- Framework / Librerías: **Angular / Express / Bootstrap**
+- Lenguaje de programación: **Python 3.14** *(ajusta según tu caso)*
+- Base de datos: **MySQL**
+- Framework / Librerías: **DJANGO**
 - Control de versiones: **Git / GitHub**
 
 ---
