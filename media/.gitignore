@@ -1,0 +1,5 @@
+# Ignorar todos los archivos subidos excepto la estructura de carpetas
+*
+!.gitignore
+!*/
+

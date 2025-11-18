@@ -1,2 +1,83 @@
+# Base de datos
+*.sqlite3
+*.db
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Django
+*.log
+local_settings.py
 db.sqlite3
-.idea
+db.sqlite3-journal
+/media/
+/staticfiles/
+/static/
+
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.directory
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Archivos temporales
+*.bak
+*.tmp
+*.temp
+
+# Logs
+logs/
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
