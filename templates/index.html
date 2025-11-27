@@ -1,12 +1,45 @@
+{% load static tailwind_tags %}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SIGEP Admin</title>
+    <title>SIGEP Admin - DaisyUI Demo</title>
+    {% tailwind_css %}
 </head>
-<body>
-    <h1>SIGEP Admin - Sistema de Gestión Portuaria</h1>
-    <p><a href="/admin/">Ir al Panel de Administración</a></p>
+<body class="bg-base-200 min-h-screen flex items-center justify-center p-4">
+    <!-- Hero Section -->
+    <div class="hero">
+        <div class="hero-content text-center">
+            <div class="max-w-md">
+                <h1 class="text-5xl font-bold text-primary mb-8">SIGEP Admin</h1>
+                
+                <!-- Mockup Phone Component -->
+                <div class="mockup-phone border-[#ff8938]">
+                    <div class="mockup-phone-camera"></div>
+                    <div class="mockup-phone-display">
+                        <img alt="wallpaper" src="https://img.daisyui.com/images/stock/453966.webp" />
+                    </div>
+                </div>
+                
+                <p class="py-6 text-lg">
+                    Sistema de Gestión Empresarial con Django + Tailwind + DaisyUI
+                </p>
+                
+                <!-- Action Buttons -->
+                <div class="flex gap-4 justify-center">
+                    <button class="btn btn-primary">Comenzar</button>
+                    <button class="btn btn-outline">Más Info</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div class="toast toast-top toast-end">
+        <div class="alert alert-info">
+            <span>✨ DaisyUI está funcionando correctamente!</span>
+        </div>
+    </div>
 </body>
 </html>
