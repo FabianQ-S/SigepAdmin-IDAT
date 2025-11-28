@@ -1,3 +1,5 @@
+import re
+
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
@@ -17,6 +19,154 @@ def validate_document_size(value):
             f"El tamaño máximo del archivo es {max_size_mb}MB. "
             f"Tu archivo tiene {filesize / (1024 * 1024):.2f}MB"
         )
+
+
+def validate_iso_6346(value):
+    """
+    Valida el código de contenedor según la norma ISO 6346.
+
+    Formato: AAAA NNNNNN C
+    - 4 letras: Código del propietario (3 letras) + categoría (U, J, Z)
+    - 6 números: Número de serie
+    - 1 número: Dígito verificador (check digit)
+
+    El dígito verificador se calcula usando el algoritmo ISO 6346:
+    1. Cada carácter tiene un valor equivalente
+    2. Se multiplica por 2^posición
+    3. Se suma todo, se divide entre 11, y el residuo es el check digit
+    4. Si el residuo es 10, el check digit es 0
+
+    Ejemplos válidos: MSKU9070323, HLXU8142385, CSQU3054383
+    """
+    value = value.upper().strip()
+
+    # Validar formato básico: 4 letras + 7 números (incluyendo check digit)
+    pattern = r"^[A-Z]{4}\d{7}$"
+    if not re.match(pattern, value):
+        raise ValidationError(
+            f"El código '{value}' no tiene el formato ISO 6346 válido. "
+            "Debe ser 4 letras seguidas de 7 números (ej: MSKU9070323)"
+        )
+
+    # Validar que la 4ta letra sea U, J o Z (categoría de equipo)
+    categoria = value[3]
+    if categoria not in ["U", "J", "Z"]:
+        raise ValidationError(
+            f"La 4ta letra debe ser U (contenedor de carga), J (equipo auxiliar) "
+            f"o Z (trailer/chasis). Recibido: '{categoria}'"
+        )
+
+    # Tabla de equivalencias ISO 6346 para letras
+    # Las letras tienen valores específicos (saltando múltiplos de 11)
+    letter_values = {
+        "A": 10,
+        "B": 12,
+        "C": 13,
+        "D": 14,
+        "E": 15,
+        "F": 16,
+        "G": 17,
+        "H": 18,
+        "I": 19,
+        "J": 20,
+        "K": 21,
+        "L": 23,
+        "M": 24,
+        "N": 25,
+        "O": 26,
+        "P": 27,
+        "Q": 28,
+        "R": 29,
+        "S": 30,
+        "T": 31,
+        "U": 32,
+        "V": 34,
+        "W": 35,
+        "X": 36,
+        "Y": 37,
+        "Z": 38,
+    }
+
+    # Calcular el check digit
+    total = 0
+    for i, char in enumerate(value[:10]):  # Solo los primeros 10 caracteres
+        if char.isalpha():
+            char_value = letter_values[char]
+        else:
+            char_value = int(char)
+
+        # Multiplicar por 2^posición
+        total += char_value * (2**i)
+
+    # Calcular el dígito verificador
+    remainder = total % 11
+    check_digit = 0 if remainder == 10 else remainder
+
+    # Validar contra el dígito proporcionado
+    provided_check_digit = int(value[10])
+
+    if check_digit != provided_check_digit:
+        raise ValidationError(
+            f"El código '{value}' tiene un dígito verificador inválido. "
+            f"Esperado: {check_digit}, Proporcionado: {provided_check_digit}. "
+            "Este código no cumple con la norma ISO 6346."
+        )
+
+    return value
+
+
+def calculate_iso_6346_check_digit(owner_code, serial_number):
+    """
+    Calcula el dígito verificador ISO 6346 dado el código de propietario y número de serie.
+
+    Args:
+        owner_code: 4 letras (ej: 'MSKU')
+        serial_number: 6 dígitos (ej: '907032')
+
+    Returns:
+        El dígito verificador (0-9)
+    """
+    letter_values = {
+        "A": 10,
+        "B": 12,
+        "C": 13,
+        "D": 14,
+        "E": 15,
+        "F": 16,
+        "G": 17,
+        "H": 18,
+        "I": 19,
+        "J": 20,
+        "K": 21,
+        "L": 23,
+        "M": 24,
+        "N": 25,
+        "O": 26,
+        "P": 27,
+        "Q": 28,
+        "R": 29,
+        "S": 30,
+        "T": 31,
+        "U": 32,
+        "V": 34,
+        "W": 35,
+        "X": 36,
+        "Y": 37,
+        "Z": 38,
+    }
+
+    code = (owner_code + serial_number).upper()
+    total = 0
+
+    for i, char in enumerate(code):
+        if char.isalpha():
+            char_value = letter_values[char]
+        else:
+            char_value = int(char)
+        total += char_value * (2**i)
+
+    remainder = total % 11
+    return 0 if remainder == 10 else remainder
 
 
 # ====== CUN02: BUQUES (Catálogo) ======
@@ -289,8 +439,9 @@ class Contenedor(models.Model):
     codigo_iso = models.CharField(
         max_length=11,
         unique=True,
-        verbose_name="Código ISO",
-        help_text="Código único del contenedor (ej: ABCD1234567)",
+        verbose_name="Código ISO 6346",
+        help_text="Código único del contenedor según norma ISO 6346 (ej: MSKU9070323)",
+        validators=[validate_iso_6346],
     )
     bic_propietario = models.CharField(
         max_length=4,
@@ -335,18 +486,53 @@ class Contenedor(models.Model):
         verbose_name="Fecha de Retiro/Entrega (Cita)",
         help_text="Import: cita de retiro | Export: cita de entrega al puerto",
     )
+    # === Información de Origen ===
     origen_pais = models.CharField(
-        max_length=60, null=True, blank=True, verbose_name="País de Origen/Destino"
+        max_length=60, null=True, blank=True, verbose_name="País de Origen"
     )
     origen_puerto = models.CharField(
-        max_length=120, null=True, blank=True, verbose_name="Puerto de Origen/Destino"
+        max_length=120, null=True, blank=True, verbose_name="Puerto de Origen"
     )
-    origen_remitente = models.CharField(
+    origen_ciudad = models.CharField(
+        max_length=120, null=True, blank=True, verbose_name="Ciudad de Origen"
+    )
+    remitente = models.CharField(
         max_length=120,
         null=True,
         blank=True,
-        verbose_name="Remitente/Consignatario",
-        help_text="Import: Remitente/Exportador | Export: Consignatario",
+        verbose_name="Remitente/Shipper",
+        help_text="Empresa o persona que envía la mercancía",
+    )
+    # === Información de Destino ===
+    destino_pais = models.CharField(
+        max_length=60, null=True, blank=True, verbose_name="País de Destino"
+    )
+    destino_puerto = models.CharField(
+        max_length=120, null=True, blank=True, verbose_name="Puerto de Destino"
+    )
+    destino_ciudad = models.CharField(
+        max_length=120, null=True, blank=True, verbose_name="Ciudad de Destino"
+    )
+    consignatario = models.CharField(
+        max_length=120,
+        null=True,
+        blank=True,
+        verbose_name="Consignatario/Receiver",
+        help_text="Empresa o persona que recibe la mercancía",
+    )
+    # === Tracking ===
+    carrier = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        verbose_name="Carrier/Naviera",
+        help_text="Naviera principal que transporta el contenedor",
+    )
+    fecha_eta_destino = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="ETA Destino Final",
+        help_text="Fecha estimada de llegada al destino final",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -394,9 +580,130 @@ class Contenedor(models.Model):
             and self.aprobacion_pago_transitario.pago_realizado
         )
 
+    @property
+    def ultimo_evento(self):
+        """Retorna el último evento registrado del contenedor"""
+        return self.eventos.order_by("-fecha_hora").first()
+
+    @property
+    def ultimo_estado(self):
+        """Retorna el tipo del último evento como estado actual"""
+        evento = self.ultimo_evento
+        return evento.get_tipo_evento_display() if evento else "Sin movimientos"
+
     def __str__(self):
         direccion_label = "IMP" if self.direccion == "IMPORT" else "EXP"
         return f"{self.codigo_iso} ({direccion_label}) - {self.bl_referencia}"
+
+
+# ====== CUN07: EVENTOS/TRACKING DE CONTENEDOR ======
+class EventoContenedor(models.Model):
+    """Registro de eventos/movimientos del contenedor para tracking"""
+
+    TIPO_EVENTO_CHOICES = [
+        # Eventos en origen
+        ("GATE_OUT_EMPTY", "Gate Out Empty - Salida vacío"),
+        ("GATE_IN_FULL", "Gate In Full - Ingreso cargado"),
+        ("LOADED", "Loaded - Cargado al buque"),
+        # Eventos en tránsito
+        ("DEPARTED", "Departed - Zarpe del buque"),
+        ("IN_TRANSIT", "In Transit - En tránsito"),
+        ("TRANSSHIPMENT", "Transshipment - Transbordo"),
+        ("ARRIVED", "Arrived - Arribo del buque"),
+        # Eventos en destino
+        ("DISCHARGED", "Discharged - Descargado del buque"),
+        ("GATE_OUT_FULL", "Gate Out Full - Salida cargado"),
+        ("DELIVERED", "Delivered - Entregado"),
+        ("GATE_IN_EMPTY", "Gate In Empty - Devolución vacío"),
+        # Eventos especiales
+        ("CUSTOMS_HOLD", "Customs Hold - Retención aduanera"),
+        ("CUSTOMS_RELEASED", "Customs Released - Liberado aduana"),
+        ("INSPECTION", "Inspection - En inspección"),
+        ("DAMAGED", "Damaged - Daño reportado"),
+    ]
+
+    MEDIO_TRANSPORTE_CHOICES = [
+        ("VESSEL", "Buque"),
+        ("TRUCK", "Camión"),
+        ("RAIL", "Ferrocarril"),
+        ("BARGE", "Barcaza"),
+    ]
+
+    contenedor = models.ForeignKey(
+        Contenedor,
+        on_delete=models.CASCADE,
+        related_name="eventos",
+        verbose_name="Contenedor",
+    )
+    tipo_evento = models.CharField(
+        max_length=20,
+        choices=TIPO_EVENTO_CHOICES,
+        verbose_name="Tipo de Evento",
+    )
+    fecha_hora = models.DateTimeField(
+        verbose_name="Fecha y Hora",
+        help_text="Momento en que ocurrió el evento",
+    )
+    # Ubicación del evento
+    ubicacion_puerto = models.CharField(
+        max_length=120,
+        verbose_name="Puerto",
+        help_text="Puerto donde ocurrió el evento",
+    )
+    ubicacion_ciudad = models.CharField(
+        max_length=120,
+        null=True,
+        blank=True,
+        verbose_name="Ciudad",
+    )
+    ubicacion_pais = models.CharField(
+        max_length=60,
+        verbose_name="País",
+    )
+    # Transporte asociado
+    buque = models.ForeignKey(
+        Buque,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="eventos_contenedores",
+        verbose_name="Buque",
+        help_text="Buque asociado al evento (si aplica)",
+    )
+    medio_transporte = models.CharField(
+        max_length=10,
+        choices=MEDIO_TRANSPORTE_CHOICES,
+        default="VESSEL",
+        verbose_name="Medio de Transporte",
+    )
+    # Información adicional
+    referencia_viaje = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name="Referencia de Viaje",
+        help_text="Número de viaje o voyage del buque",
+    )
+    notas = models.TextField(
+        blank=True,
+        verbose_name="Notas",
+        help_text="Observaciones adicionales del evento",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Evento de Contenedor"
+        verbose_name_plural = "Eventos de Contenedores"
+        ordering = ["-fecha_hora"]
+        indexes = [
+            models.Index(fields=["contenedor", "-fecha_hora"]),
+            models.Index(fields=["tipo_evento"]),
+            models.Index(fields=["fecha_hora"]),
+        ]
+
+    def __str__(self):
+        return f"{self.contenedor.codigo_iso} - {self.get_tipo_evento_display()} - {self.fecha_hora.strftime('%Y-%m-%d %H:%M')}"
 
 
 # ====== CUN04: PERMISOS ADUANEROS (1-1 opcional) ======
