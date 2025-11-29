@@ -883,7 +883,8 @@ class QuejaAdmin(admin.ModelAdmin):
 
 
 # ====== EVENTO CONTENEDOR ADMIN ======
-@admin.register(EventoContenedor)
+# NOTA: No se registra en el admin principal para mantener el listado limpio.
+# Los eventos se administran desde dentro de cada Contenedor (inline).
 class EventoContenedorAdmin(admin.ModelAdmin):
     list_display = [
         "contenedor_codigo",

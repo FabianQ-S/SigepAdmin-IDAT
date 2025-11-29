@@ -65,12 +65,18 @@ def detalle_contenedor(request, codigo_iso):
 
     eventos = contenedor.eventos.select_related("buque").order_by("-fecha_hora")
 
+    # Obtener aprobaciones (pueden no existir)
+    aprobacion_financiera = getattr(contenedor, "aprobacion_financiera", None)
+    aprobacion_aduanera = getattr(contenedor, "aprobacion_aduanera", None)
+
     return render(
         request,
         "tracking/detalle.html",
         {
             "contenedor": contenedor,
             "eventos": eventos,
+            "aprobacion_financiera": aprobacion_financiera,
+            "aprobacion_aduanera": aprobacion_aduanera,
         },
     )
 
