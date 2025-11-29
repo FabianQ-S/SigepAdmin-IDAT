@@ -1,0 +1,66 @@
+{% load static tailwind_tags django_htmx %}
+<!DOCTYPE html>
+<html lang="es" data-theme="nord">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de rastreo de contenedores del Puerto de Chancay - COSCO Shipping">
+    <title>{% block title %}Puerto de Chancay - Rastreo de Contenedores{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{% static 'images/LogoPuertoChancay.png' %}">
+    
+    {% tailwind_css %}
+    
+    <!-- HTMX - biblioteca principal -->
+    <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+    
+    <!-- django-htmx extensions -->
+    {% django_htmx_script %}
+    
+    <!-- Alpine.js (CDN) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <style>
+        /* Fondo con imagen FondoAPP */
+        .bg-puerto {
+            background-image: linear-gradient(to bottom, rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.85)), url('{% static "images/FondoAPP.jpg" %}');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        
+        /* Animación suave para drawer */
+        .drawer-side {
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="min-h-screen bg-puerto" x-data="{ drawerOpen: false, loginModal: false }">
+    
+    <!-- Drawer lateral -->
+    {% include 'tracking/partials/_drawer.html' %}
+    
+    <!-- Contenido principal -->
+    <div class="relative z-10 min-h-screen flex flex-col">
+        
+        <!-- Navbar -->
+        {% include 'tracking/partials/_navbar.html' %}
+        
+        <!-- Main Content -->
+        <main class="flex-1">
+            {% block content %}{% endblock %}
+        </main>
+        
+        <!-- Footer -->
+        {% include 'tracking/partials/_footer.html' %}
+    </div>
+    
+    <!-- Modal Login Admin -->
+    {% include 'tracking/partials/_modal_login.html' %}
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!-- Resultado de búsqueda de contenedor -->
+<div class="card bg-white shadow-2xl animate-fade-in rounded-2xl">
+    <div class="card-body p-5 lg:p-6">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-6">
+            
+            <!-- Contenedor Info -->
+            <div class="space-y-1">
+                <p class="text-xs text-slate-400 font-medium">Container:</p>
+                <p class="text-lg font-bold text-slate-900">{{ contenedor.codigo_iso }}</p>
+                <p class="text-sm text-slate-500">Container type: {{ contenedor.tipo_tamaño }}</p>
+            </div>
+            
+            <!-- Origen -->
+            <div class="space-y-1">
+                <p class="text-xs text-slate-400 font-medium">From:</p>
+                <p class="text-base font-semibold text-slate-900">
+                    {% if contenedor.origen_puerto %}{{ contenedor.origen_puerto }}{% else %}--{% endif %}{% if contenedor.origen_pais %}, {{ contenedor.origen_pais }}{% endif %}
+                </p>
+                <p class="text-sm text-slate-500">
+                    {% if contenedor.arribo.fecha_arribo_real %}
+                        {{ contenedor.arribo.fecha_arribo_real|date:"Y-m-d" }}
+                    {% else %}
+                        {{ contenedor.arribo.fecha_eta|date:"Y-m-d" }}
+                    {% endif %}
+                </p>
+            </div>
+            
+            <!-- Destino -->
+            <div class="space-y-1">
+                <p class="text-xs text-slate-400 font-medium">To:</p>
+                <p class="text-base font-semibold text-slate-900">
+                    {% if contenedor.destino_puerto %}{{ contenedor.destino_puerto }}{% else %}--{% endif %}{% if contenedor.destino_pais %}, {{ contenedor.destino_pais }}{% endif %}
+                </p>
+                <p class="text-sm text-slate-500">
+                    {% if contenedor.fecha_eta_destino %}
+                        {{ contenedor.fecha_eta_destino|date:"Y-m-d" }}
+                    {% else %}
+                        --
+                    {% endif %}
+                </p>
+            </div>
+            
+            <!-- Último Estado -->
+            <div class="space-y-1">
+                <p class="text-xs text-slate-400 font-medium">Last status:</p>
+                <p class="text-base font-semibold text-slate-900">
+                    {% if ultimo_evento %}
+                        {{ ultimo_evento.ubicacion_puerto }}{% if ultimo_evento.ubicacion_pais %}, {{ ultimo_evento.ubicacion_pais }}{% endif %}
+                    {% else %}
+                        Sin eventos
+                    {% endif %}
+                </p>
+                <p class="text-sm text-slate-500">
+                    {% if ultimo_evento %}
+                        {{ ultimo_evento.get_tipo_evento_display }}
+                        <br>{{ ultimo_evento.fecha_hora|date:"Y-m-d" }}
+                    {% else %}
+                        --
+                    {% endif %}
+                </p>
+            </div>
+            <!-- Transitario y Acciones -->
+            <div class="col-span-2 md:col-span-3 lg:col-span-1 flex flex-col justify-between gap-3">
+                <div class="space-y-1">
+                    <p class="text-xs text-slate-400 font-medium">Transitario:</p>
+                    <p class="text-sm font-medium text-slate-700">
+                        {% if contenedor.transitario %}
+                            {{ contenedor.transitario.nombre_comercial|default:contenedor.transitario.razon_social }}
+                        {% else %}
+                            No asignado
+                        {% endif %}
+                    </p>
+                </div>
+                <a 
+                    href="{% url 'control:detalle' contenedor.codigo_iso %}"
+                    class="btn bg-indigo-600 hover:bg-indigo-700 text-white border-0 rounded-lg"
+                >
+                    More details
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-out;
+    }
+</style>

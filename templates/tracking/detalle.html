@@ -1,0 +1,145 @@
+{% extends 'tracking/base.html' %}
+{% load static %}
+
+{% block title %}{{ contenedor.codigo_iso }} | Detalle de Contenedor{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 lg:py-12">
+    
+    <!-- Header con código -->
+    <div class="mb-8">
+        <a href="{% url 'control:index' %}" class="btn btn-ghost btn-sm text-white/70 hover:text-white gap-2 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Volver a buscar
+        </a>
+        
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-white drop-shadow-lg">
+                    {{ contenedor.codigo_iso }}
+                </h1>
+                <p class="text-white/70">
+                    {{ contenedor.tipo_tamaño }} • 
+                    {% if contenedor.direccion == 'IMPORT' %}Importación{% else %}Exportación{% endif %} •
+                    {% if contenedor.carrier %}{{ contenedor.carrier }}{% else %}Carrier no especificado{% endif %}
+                </p>
+            </div>
+            
+            {% if contenedor.fecha_eta_destino %}
+            <div class="text-right">
+                <p class="text-xs text-white/60 uppercase tracking-wide">ETA Destino</p>
+                <p class="text-xl font-bold text-sky-400">{{ contenedor.fecha_eta_destino|date:"Y-m-d" }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Info Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <!-- Origen -->
+        <div class="card bg-slate-800/70 border border-slate-600">
+            <div class="card-body p-4">
+                <h3 class="text-xs text-white/50 uppercase tracking-wide mb-2">Origen</h3>
+                <p class="text-lg font-semibold text-white">
+                    {% if contenedor.origen_puerto %}{{ contenedor.origen_puerto }}{% else %}--{% endif %}
+                </p>
+                <p class="text-sm text-white/70">
+                    {% if contenedor.origen_ciudad %}{{ contenedor.origen_ciudad }}, {% endif %}
+                    {% if contenedor.origen_pais %}{{ contenedor.origen_pais }}{% endif %}
+                </p>
+                {% if contenedor.remitente %}
+                <p class="text-xs text-white/50 mt-2">Shipper: {{ contenedor.remitente }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Destino -->
+        <div class="card bg-slate-800/70 border border-slate-600">
+            <div class="card-body p-4">
+                <h3 class="text-xs text-white/50 uppercase tracking-wide mb-2">Destino</h3>
+                <p class="text-lg font-semibold text-white">
+                    {% if contenedor.destino_puerto %}{{ contenedor.destino_puerto }}{% else %}--{% endif %}
+                </p>
+                <p class="text-sm text-white/70">
+                    {% if contenedor.destino_ciudad %}{{ contenedor.destino_ciudad }}, {% endif %}
+                    {% if contenedor.destino_pais %}{{ contenedor.destino_pais }}{% endif %}
+                </p>
+                {% if contenedor.consignatario %}
+                <p class="text-xs text-white/50 mt-2">Consignee: {{ contenedor.consignatario }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Transitario -->
+        <div class="card bg-slate-800/70 border border-slate-600">
+            <div class="card-body p-4">
+                <h3 class="text-xs text-white/50 uppercase tracking-wide mb-2">Transitario</h3>
+                {% if contenedor.transitario %}
+                <p class="text-lg font-semibold text-white">
+                    {{ contenedor.transitario.nombre_comercial|default:contenedor.transitario.razon_social }}
+                </p>
+                <p class="text-sm text-white/70">{{ contenedor.transitario.tipo_servicio }}</p>
+                {% else %}
+                <p class="text-white/50">No asignado</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Timeline de eventos -->
+    <div class="card bg-slate-800/70 border border-slate-600">
+        <div class="card-body">
+            <h2 class="card-title text-white mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Timeline de Eventos
+            </h2>
+            
+            {% if eventos %}
+            <ul class="timeline timeline-vertical timeline-compact">
+                {% for evento in eventos %}
+                <li>
+                    {% if not forloop.first %}<hr class="bg-slate-600">{% endif %}
+                    <div class="timeline-start text-white/60 text-sm">
+                        {{ evento.fecha_hora|date:"d/m/Y H:i" }}
+                    </div>
+                    <div class="timeline-middle">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 {% if forloop.first %}text-sky-400{% else %}text-slate-500{% endif %}">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="timeline-end timeline-box bg-slate-700/70 border-slate-500">
+                        <p class="font-semibold text-white">{{ evento.get_tipo_evento_display }}</p>
+                        <p class="text-sm text-white/70">
+                            {{ evento.ubicacion_puerto }}{% if evento.ubicacion_ciudad %}, {{ evento.ubicacion_ciudad }}{% endif %}, {{ evento.ubicacion_pais }}
+                        </p>
+                        {% if evento.buque %}
+                        <p class="text-xs text-white/50 mt-1">
+                            Buque: {{ evento.buque.nombre }}
+                            {% if evento.referencia_viaje %}({{ evento.referencia_viaje }}){% endif %}
+                        </p>
+                        {% endif %}
+                        {% if evento.notas %}
+                        <p class="text-xs text-white/50 mt-1">{{ evento.notas }}</p>
+                        {% endif %}
+                    </div>
+                    {% if not forloop.last %}<hr class="bg-slate-600">{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="text-center py-8">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-white/30 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p class="text-white/50">No hay eventos registrados para este contenedor.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+</div>
+{% endblock %}
