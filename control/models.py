@@ -905,6 +905,16 @@ class AprobacionPagoTransitario(models.Model):
 
 
 # ====== CUN07: QUEJAS ======
+def queja_imagen_path(instance, filename):
+    """Genera la ruta para guardar imágenes de quejas"""
+    import os
+    from uuid import uuid4
+
+    ext = filename.split(".")[-1]
+    new_filename = f"{uuid4().hex[:8]}.{ext}"
+    return os.path.join("quejas", new_filename)
+
+
 class Queja(models.Model):
     """Registro de quejas de clientes"""
 
@@ -918,27 +928,43 @@ class Queja(models.Model):
     ]
 
     ESTADO_CHOICES = [
-        ("PENDIENTE", "Pendiente"),
-        ("EN_REVISION", "En Revisión"),
-        ("RESUELTO", "Resuelto"),
-        ("CERRADO", "Cerrado"),
-        ("RECHAZADO", "Rechazado"),
+        ("SIN_ESTADO", "Sin Estado"),
+        ("EN_PROCESO", "En Proceso"),
+        ("SOLUCIONADA", "Solucionada"),
+        ("ARCHIVADA", "Archivada"),
     ]
 
-    email_cliente = models.EmailField(blank=True, verbose_name="Email del Cliente")
-    nombre_cliente = models.CharField(
-        max_length=120, blank=True, verbose_name="Nombre del Cliente"
-    )
+    email_cliente = models.EmailField(verbose_name="Email del Cliente")
+    nombre_cliente = models.CharField(max_length=120, verbose_name="Nombre del Cliente")
     categoria = models.CharField(
         max_length=20, choices=CATEGORIA_CHOICES, verbose_name="Categoría"
     )
     estado = models.CharField(
         max_length=20,
         choices=ESTADO_CHOICES,
-        default="PENDIENTE",
+        default="SIN_ESTADO",
         verbose_name="Estado",
     )
     descripcion = models.TextField(verbose_name="Descripción")
+    # Hasta 3 imágenes adjuntas
+    imagen1 = models.ImageField(
+        upload_to=queja_imagen_path,
+        blank=True,
+        null=True,
+        verbose_name="Imagen 1",
+    )
+    imagen2 = models.ImageField(
+        upload_to=queja_imagen_path,
+        blank=True,
+        null=True,
+        verbose_name="Imagen 2",
+    )
+    imagen3 = models.ImageField(
+        upload_to=queja_imagen_path,
+        blank=True,
+        null=True,
+        verbose_name="Imagen 3",
+    )
     fecha_creacion = models.DateTimeField(
         auto_now_add=True, verbose_name="Fecha de Creación"
     )

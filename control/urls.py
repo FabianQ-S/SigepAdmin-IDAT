@@ -10,4 +10,9 @@ urlpatterns = [
     path("tracking/<str:codigo_iso>/", views.detalle_contenedor, name="detalle"),
     path("sobre-nosotros/", views.sobre_nosotros, name="sobre_nosotros"),
     path("quejas/", views.quejas_sugerencias, name="quejas"),
+    path(
+        "quejas/validar-contenedor/",
+        views.validar_contenedor_queja,
+        name="validar_contenedor_queja",
+    ),
 ]

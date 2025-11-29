@@ -18,6 +18,7 @@ markdown-it-py==4.0.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
 pathspec==0.12.1
+pillow==12.0.0
 Pygments==2.19.2
 pyjson5==2.0.0
 pytailwindcss==0.3.0

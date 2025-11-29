@@ -842,14 +842,15 @@ class QuejaAdmin(admin.ModelAdmin):
     list_display = [
         "id",
         "categoria",
-        "estado",
+        "estado_coloreado",
         "nombre_cliente",
         "email_cliente",
+        "tiene_imagenes",
         "fecha_creacion",
     ]
     list_filter = ["categoria", "estado", "fecha_creacion"]
     search_fields = ["nombre_cliente", "email_cliente", "descripcion"]
-    readonly_fields = ["fecha_creacion", "updated_at"]
+    readonly_fields = ["fecha_creacion", "updated_at", "preview_imagenes"]
     date_hierarchy = "fecha_creacion"
     inlines = [QuejaContenedorInline]
 
@@ -858,28 +859,84 @@ class QuejaAdmin(admin.ModelAdmin):
         ("Cliente", {"fields": ("nombre_cliente", "email_cliente")}),
         ("Descripción", {"fields": ("descripcion",)}),
         (
+            "Imágenes Adjuntas",
+            {"fields": ("imagen1", "imagen2", "imagen3", "preview_imagenes")},
+        ),
+        (
             "Auditoría",
             {"fields": ("fecha_creacion", "updated_at"), "classes": ("collapse",)},
         ),
     )
 
-    actions = ["marcar_como_resuelta", "marcar_como_en_revision"]
+    actions = ["marcar_en_proceso", "marcar_solucionada", "marcar_archivada"]
 
-    def marcar_como_resuelta(self, request, queryset):
-        """Marcar quejas como resueltas"""
-        updated = queryset.filter(estado__in=["PENDIENTE", "EN_REVISION"]).update(
-            estado="RESUELTO"
+    def estado_coloreado(self, obj):
+        """Muestra el estado con colores según el proceso"""
+        colores = {
+            "SIN_ESTADO": ("#f8fafc", "#94a3b8"),  # blanco/gris
+            "EN_PROCESO": ("#0ea5e9", "#0284c7"),  # azul
+            "SOLUCIONADA": ("#22c55e", "#16a34a"),  # verde
+            "ARCHIVADA": ("#eab308", "#ca8a04"),  # amarillo
+        }
+        bg, border = colores.get(obj.estado, ("#f8fafc", "#94a3b8"))
+        return format_html(
+            '<span style="background-color: {}; color: {}; padding: 4px 10px; '
+            "border-radius: 12px; border: 2px solid {}; font-size: 11px; "
+            'font-weight: 600; text-shadow: 0 1px 1px rgba(0,0,0,0.3);">{}</span>',
+            bg,
+            "#fff" if obj.estado != "SIN_ESTADO" else "#334155",
+            border,
+            obj.get_estado_display(),
         )
-        messages.success(request, f"{updated} queja(s) marcada(s) como RESUELTO.")
 
-    marcar_como_resuelta.short_description = "Marcar como RESUELTO"
+    estado_coloreado.short_description = "Estado"
+    estado_coloreado.admin_order_field = "estado"
 
-    def marcar_como_en_revision(self, request, queryset):
-        """Marcar quejas como en revisión"""
-        updated = queryset.filter(estado="PENDIENTE").update(estado="EN_REVISION")
-        messages.success(request, f"{updated} queja(s) marcada(s) como EN_REVISION.")
+    def tiene_imagenes(self, obj):
+        """Indicador de si tiene imágenes adjuntas"""
+        count = sum([1 for img in [obj.imagen1, obj.imagen2, obj.imagen3] if img])
+        if count > 0:
+            return format_html('<span style="color: green;">📷 {}</span>', count)
+        return format_html('<span style="color: gray;">—</span>')
 
-    marcar_como_en_revision.short_description = "Marcar como EN REVISIÓN"
+    tiene_imagenes.short_description = "Img"
+
+    def preview_imagenes(self, obj):
+        """Vista previa de las imágenes en el admin"""
+        html = ""
+        for i, img in enumerate([obj.imagen1, obj.imagen2, obj.imagen3], 1):
+            if img:
+                html += format_html(
+                    '<a href="{}" target="_blank"><img src="{}" style="max-height: 100px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;"></a>',
+                    img.url,
+                    img.url,
+                )
+        return format_html(html) if html else "Sin imágenes"
+
+    preview_imagenes.short_description = "Vista previa"
+
+    def marcar_en_proceso(self, request, queryset):
+        """Marcar quejas como en proceso"""
+        updated = queryset.filter(estado="SIN_ESTADO").update(estado="EN_PROCESO")
+        messages.success(request, f"{updated} queja(s) marcada(s) como EN PROCESO.")
+
+    marcar_en_proceso.short_description = "Marcar como EN PROCESO"
+
+    def marcar_solucionada(self, request, queryset):
+        """Marcar quejas como solucionadas"""
+        updated = queryset.filter(estado__in=["SIN_ESTADO", "EN_PROCESO"]).update(
+            estado="SOLUCIONADA"
+        )
+        messages.success(request, f"{updated} queja(s) marcada(s) como SOLUCIONADA.")
+
+    marcar_solucionada.short_description = "Marcar como SOLUCIONADA"
+
+    def marcar_archivada(self, request, queryset):
+        """Marcar quejas como archivadas"""
+        updated = queryset.update(estado="ARCHIVADA")
+        messages.success(request, f"{updated} queja(s) marcada(s) como ARCHIVADA.")
+
+    marcar_archivada.short_description = "Marcar como ARCHIVADA"
 
 
 # ====== EVENTO CONTENEDOR ADMIN ======

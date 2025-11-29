@@ -4,44 +4,477 @@
 {% block title %}Quejas y Sugerencias | Puerto de Chancay{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-16 lg:py-24">
-    <div class="max-w-3xl mx-auto text-center">
+<div class="container mx-auto px-4 py-8 lg:py-12">
+    
+    <!-- Header -->
+    <div class="mb-8">
+        <a href="{% url 'control:index' %}" class="btn btn-ghost btn-sm text-white/70 hover:text-white gap-2 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Volver al inicio
+        </a>
         
-        <!-- Icono -->
-        <div class="mb-8">
-            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/20">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
+        <h1 class="text-2xl md:text-3xl font-bold text-white drop-shadow-lg">
+            Quejas y Sugerencias
+        </h1>
+        <p class="text-white/70 mt-2">
+            Tu opinión es importante para nosotros. Registra tu queja y nos comunicaremos contigo.
+        </p>
+    </div>
+    
+    <!-- Mensajes de éxito -->
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="alert alert-success bg-emerald-500/20 border border-emerald-500/50 text-emerald-300">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Errores -->
+    {% if errors %}
+    <div class="mb-6">
+        <div class="alert alert-error bg-red-500/20 border border-red-500/50 text-red-300">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+                <ul class="list-disc list-inside">
+                    {% for error in errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Formulario de Queja (2 columnas) -->
+        <div class="lg:col-span-2">
+            <div class="card bg-slate-800/70 border border-slate-600">
+                <div class="card-body">
+                    <h2 class="card-title text-white mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                        </svg>
+                        Registrar Queja
+                    </h2>
+                    
+                    <form method="POST" enctype="multipart/form-data" class="space-y-5" x-data="quejaForm()">
+                        {% csrf_token %}
+                        
+                        <!-- Contenedor (si viene pre-llenado desde detalle) -->
+                        {% if contenedor_info %}
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-white/80">Código de Contenedor <span class="text-red-400">*</span></span>
+                            </label>
+                            <div class="bg-sky-500/10 border border-sky-500/30 rounded-lg p-4 relative">
+                                <p class="text-xs text-sky-400 uppercase tracking-wide mb-2">Contenedor relacionado</p>
+                                <p class="text-white font-bold text-lg">{{ contenedor_info.codigo_iso }}</p>
+                                <p class="text-white/70 text-sm">
+                                    {{ contenedor_info.tipo_tamaño }} • 
+                                    {% if contenedor_info.direccion == 'IMPORT' %}Importación{% else %}Exportación{% endif %}
+                                </p>
+                                {% if contenedor_info.transitario %}
+                                <p class="text-white/50 text-xs mt-1">Transitario: {{ contenedor_info.transitario.nombre_comercial|default:contenedor_info.transitario.razon_social }}</p>
+                                {% endif %}
+                                <input type="hidden" name="contenedor_iso" value="{{ contenedor_info.codigo_iso }}">
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Campo manual para código de contenedor con validación HTMX -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-white/80">Código de Contenedor <span class="text-red-400">*</span></span>
+                            </label>
+                            
+                            <!-- Input con botón de validación -->
+                            <div id="contenedor-input-container" :class="{ 'hidden': contenedorValidado }">
+                                <div class="join w-full">
+                                    <input 
+                                        type="text" 
+                                        id="contenedor-input"
+                                        x-model="codigoContenedor"
+                                        placeholder="Ej: HLXU8142385"
+                                        class="input input-bordered join-item bg-slate-700/50 border-slate-600 text-white placeholder:text-white/40 uppercase flex-1 w-full"
+                                        maxlength="11"
+                                        @keyup.enter.prevent="validarContenedor()"
+                                    >
+                                    <button 
+                                        type="button"
+                                        class="btn join-item bg-sky-600 hover:bg-sky-700 border-sky-600 text-white"
+                                        @click="validarContenedor()"
+                                        :disabled="!codigoContenedor || codigoContenedor.length < 11"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Área donde se muestra el resultado de validación (HTMX) -->
+                            <div id="contenedor-validacion" class="mt-2"></div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Nombre -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-white/80">Tu Nombre <span class="text-red-400">*</span></span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="nombre" 
+                                placeholder="Tu nombre completo"
+                                value="{{ form_data.nombre|default:'' }}"
+                                class="input input-bordered bg-slate-700/50 border-slate-600 text-white placeholder:text-white/40 w-full"
+                                required
+                            >
+                        </div>
+                        
+                        <!-- Email -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-white/80">Correo Electrónico <span class="text-red-400">*</span></span>
+                            </label>
+                            <input 
+                                type="email" 
+                                name="email" 
+                                placeholder="tu@correo.com"
+                                value="{{ form_data.email|default:'' }}"
+                                class="input input-bordered bg-slate-700/50 border-slate-600 text-white placeholder:text-white/40 w-full"
+                                required
+                            >
+                            <label class="label">
+                                <span class="label-text-alt text-white/50">Te contactaremos a este correo para dar seguimiento</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Categoría -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-white/80">Categoría de la Queja <span class="text-red-400">*</span></span>
+                            </label>
+                            <select 
+                                name="categoria" 
+                                class="select select-bordered bg-slate-700/50 border-slate-600 text-white w-full"
+                                required
+                            >
+                                <option value="" disabled {% if not form_data.categoria %}selected{% endif %}>Selecciona una categoría</option>
+                                {% for value, label in categorias %}
+                                <option value="{{ value }}" {% if form_data.categoria == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- Descripción -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-white/80">Descripción de la Queja <span class="text-red-400">*</span></span>
+                            </label>
+                            <textarea 
+                                name="descripcion" 
+                                placeholder="Describe brevemente tu queja o problema (Los documentos se pedirán por correo previa aceptación de la queja)"
+                                class="textarea textarea-bordered bg-slate-700/50 border-slate-600 text-white placeholder:text-white/40 h-32 w-full"
+                                required
+                            >{{ form_data.descripcion|default:'' }}</textarea>
+                        </div>
+                        
+                        <!-- Adjuntar Imágenes -->
+                        <div class="form-control">
+                            <label class="label py-1">
+                                <span class="label-text text-white/80 text-sm">Adjuntar Imágenes (máx. 3)</span>
+                            </label>
+                            
+                            <!-- Contenedor de imágenes compacto -->
+                            <div class="bg-slate-700/30 border border-slate-600 border-dashed rounded-lg p-2">
+                                <!-- Área de drop / paste compacta -->
+                                <div 
+                                    class="flex items-center gap-3 py-2 px-3 cursor-pointer rounded hover:bg-slate-600/30 transition-colors"
+                                    @click="$refs.fileInput.click()"
+                                    @paste.window="handlePaste($event)"
+                                    @dragover.prevent="isDragging = true"
+                                    @dragleave.prevent="isDragging = false"
+                                    @drop.prevent="handleDrop($event)"
+                                    :class="{ 'bg-sky-500/10': isDragging }"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <div class="text-sm">
+                                        <span class="text-sky-400 font-medium">Clic para seleccionar</span>
+                                        <span class="text-white/50"> · Arrastrar · Ctrl+V</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Input file oculto -->
+                                <input 
+                                    type="file" 
+                                    x-ref="fileInput"
+                                    accept="image/*"
+                                    multiple
+                                    class="hidden"
+                                    @change="handleFileSelect($event)"
+                                >
+                                
+                                <!-- Preview de imágenes compacto -->
+                                <div class="flex flex-wrap gap-2 mt-2 pt-2 border-t border-slate-600/50" x-show="imagenes.length > 0">
+                                    <template x-for="(img, index) in imagenes" :key="index">
+                                        <div class="relative group">
+                                            <img :src="img.preview" class="w-16 h-16 object-cover rounded border border-slate-500">
+                                            <button 
+                                                type="button"
+                                                class="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center bg-red-500 hover:bg-red-600 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                                @click="removeImage(index)"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <span class="text-white/40 text-xs self-end" x-text="imagenes.length + '/3'"></span>
+                                </div>
+                            </div>
+                            
+                            <!-- Inputs hidden para enviar archivos -->
+                            <input type="file" name="imagen1" x-ref="imagen1" class="hidden" accept="image/*">
+                            <input type="file" name="imagen2" x-ref="imagen2" class="hidden" accept="image/*">
+                            <input type="file" name="imagen3" x-ref="imagen3" class="hidden" accept="image/*">
+                        </div>
+                        
+                        <!-- Submit -->
+                        <div class="form-control mt-6">
+                            <button type="submit" class="btn btn-primary gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                </svg>
+                                Enviar Queja
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
         
-        <!-- Título -->
-        <h1 class="text-3xl md:text-4xl font-bold text-white mb-6">
-            Quejas y Sugerencias
-        </h1>
-        
-        <!-- Contenido placeholder -->
-        <div class="bg-slate-800/50 rounded-2xl p-8 border border-slate-700">
-            <p class="text-slate-400 text-lg mb-4">
-                Esta página está en construcción.
-            </p>
-            <p class="text-slate-500 text-sm">
-                Próximamente podrás enviar tus quejas, sugerencias y comentarios 
-                sobre nuestros servicios. Tu opinión es importante para nosotros.
-            </p>
-        </div>
-        
-        <!-- Botón volver -->
-        <div class="mt-8">
-            <a href="{% url 'control:index' %}" class="btn btn-primary btn-outline gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Volver al inicio
-            </a>
+        <!-- Sidebar - Sugerencias (1 columna) -->
+        <div class="lg:col-span-1">
+            <div class="card bg-slate-800/70 border border-slate-600">
+                <div class="card-body">
+                    <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        ¿Tienes una sugerencia?
+                    </h3>
+                    
+                    <p class="text-white/70 text-sm mb-4">
+                        ¿Tienes una sugerencia para mejorar el servicio o el diseño de la app? 
+                        ¡Comunícate con nosotros! Escucharemos tus sugerencias.
+                    </p>
+                    
+                    <div class="divider divider-neutral my-2"></div>
+                    
+                    <p class="text-white/50 text-xs uppercase tracking-wide mb-3">Contáctanos en redes sociales</p>
+                    
+                    <div class="flex gap-3 justify-center">
+                        <!-- X (Twitter) -->
+                        <a href="https://twitter.com/coscochancay" target="_blank" rel="noopener" 
+                           class="btn btn-circle btn-ghost bg-slate-700/50 hover:bg-sky-600/30 text-white" 
+                           aria-label="X (Twitter)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                            </svg>
+                        </a>
+                        <!-- Facebook -->
+                        <a href="https://facebook.com/coscochancay" target="_blank" rel="noopener" 
+                           class="btn btn-circle btn-ghost bg-slate-700/50 hover:bg-sky-600/30 text-white" 
+                           aria-label="Facebook">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                            </svg>
+                        </a>
+                        <!-- LinkedIn -->
+                        <a href="https://linkedin.com/company/cosco-shipping-ports-chancay" target="_blank" rel="noopener" 
+                           class="btn btn-circle btn-ghost bg-slate-700/50 hover:bg-sky-600/30 text-white" 
+                           aria-label="LinkedIn">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                            </svg>
+                        </a>
+                        <!-- GitHub -->
+                        <a href="https://github.com/cosco-shipping-chancay" target="_blank" rel="noopener" 
+                           class="btn btn-circle btn-ghost bg-slate-700/50 hover:bg-sky-600/30 text-white" 
+                           aria-label="GitHub">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                            </svg>
+                        </a>
+                    </div>
+                    
+                    <p class="text-white/40 text-xs text-center mt-4">
+                        Las sugerencias sobre el servicio y diseño de la app se gestionan a través de nuestras redes sociales.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Info adicional -->
+            <div class="card bg-slate-800/50 border border-slate-700 mt-4">
+                <div class="card-body p-4">
+                    <div class="flex items-start gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-sky-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                            <p class="text-white/70 text-sm">
+                                <strong class="text-white">¿Cómo funciona?</strong><br>
+                                Al registrar tu queja, nuestro equipo la revisará y se comunicará contigo por correo electrónico para darle seguimiento.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         
     </div>
 </div>
+
+<script>
+function quejaForm() {
+    return {
+        codigoContenedor: '',
+        contenedorValidado: false,
+        imagenes: [],
+        isDragging: false,
+        maxImagenes: 3,
+        
+        validarContenedor() {
+            if (!this.codigoContenedor || this.codigoContenedor.length < 11) return;
+            
+            const codigo = this.codigoContenedor.toUpperCase();
+            const target = document.getElementById('contenedor-validacion');
+            
+            // Usar HTMX para validar
+            htmx.ajax('GET', `{% url 'control:validar_contenedor_queja' %}?codigo=${codigo}`, {
+                target: '#contenedor-validacion',
+                swap: 'innerHTML'
+            }).then(() => {
+                // Verificar si se encontró el contenedor
+                const validado = document.getElementById('contenedor-validado');
+                if (validado) {
+                    this.contenedorValidado = true;
+                    document.getElementById('contenedor-input-container').classList.add('hidden');
+                }
+            });
+        },
+        
+        handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            this.addImages(files);
+            event.target.value = ''; // Reset input
+        },
+        
+        handleDrop(event) {
+            this.isDragging = false;
+            const files = Array.from(event.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+            this.addImages(files);
+        },
+        
+        handlePaste(event) {
+            const items = event.clipboardData?.items;
+            if (!items) return;
+            
+            const files = [];
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) files.push(file);
+                }
+            }
+            
+            if (files.length > 0) {
+                this.addImages(files);
+            }
+        },
+        
+        addImages(files) {
+            const remaining = this.maxImagenes - this.imagenes.length;
+            const toAdd = files.slice(0, remaining);
+            
+            toAdd.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.imagenes.push({
+                        file: file,
+                        preview: e.target.result,
+                        name: file.name.length > 15 ? file.name.substring(0, 12) + '...' : file.name
+                    });
+                    this.updateFileInputs();
+                };
+                reader.readAsDataURL(file);
+            });
+        },
+        
+        removeImage(index) {
+            this.imagenes.splice(index, 1);
+            this.updateFileInputs();
+        },
+        
+        updateFileInputs() {
+            // Crear DataTransfer para cada input file
+            const inputs = [this.$refs.imagen1, this.$refs.imagen2, this.$refs.imagen3];
+            
+            inputs.forEach((input, i) => {
+                if (this.imagenes[i]) {
+                    const dt = new DataTransfer();
+                    dt.items.add(this.imagenes[i].file);
+                    input.files = dt.files;
+                } else {
+                    input.value = '';
+                }
+            });
+        }
+    }
+}
+
+// Función global para desvincular contenedor (llamada desde el partial)
+function desvincularContenedor() {
+    // Obtener la instancia de Alpine del formulario
+    const form = document.querySelector('[x-data]');
+    if (form && form._x_dataStack) {
+        const data = form._x_dataStack[0];
+        data.contenedorValidado = false;
+        data.codigoContenedor = '';
+    }
+    
+    // Mostrar el input
+    const inputContainer = document.getElementById('contenedor-input-container');
+    if (inputContainer) {
+        inputContainer.classList.remove('hidden');
+    }
+    
+    // Limpiar área de validación
+    const validacion = document.getElementById('contenedor-validacion');
+    if (validacion) {
+        validacion.innerHTML = '';
+    }
+    
+    // Limpiar input
+    const input = document.getElementById('contenedor-input');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+}
+</script>
 {% endblock %}

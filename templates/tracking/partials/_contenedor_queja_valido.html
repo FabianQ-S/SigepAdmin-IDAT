@@ -1,0 +1,38 @@
+<!-- Contenedor válido encontrado - con botón para desvincular -->
+<div class="bg-sky-500/10 border border-sky-500/30 rounded-lg p-4 relative" id="contenedor-validado">
+    <!-- Botón X para desvincular -->
+    <button 
+        type="button"
+        class="absolute top-2 right-2 btn btn-ghost btn-xs btn-circle text-white/60 hover:text-white hover:bg-red-500/30"
+        onclick="desvincularContenedor()"
+        title="Desvincular contenedor"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+    </button>
+    
+    <p class="text-xs text-sky-400 uppercase tracking-wide mb-2">Contenedor relacionado</p>
+    <p class="text-white font-bold text-lg">{{ contenedor.codigo_iso }}</p>
+    <p class="text-white/70 text-sm">
+        {{ contenedor.tipo_tamaño }} • 
+        {% if contenedor.direccion == 'IMPORT' %}Importación{% else %}Exportación{% endif %}
+    </p>
+    {% if contenedor.transitario %}
+    <p class="text-white/50 text-xs mt-1">Transitario: {{ contenedor.transitario.nombre_comercial|default:contenedor.transitario.razon_social }}</p>
+    {% endif %}
+    
+    <!-- Campo hidden con el código validado -->
+    <input type="hidden" name="contenedor_iso" value="{{ contenedor.codigo_iso }}" id="contenedor-iso-hidden">
+</div>
+
+<script>
+function desvincularContenedor() {
+    // Mostrar nuevamente el campo de entrada
+    document.getElementById('contenedor-input-container').classList.remove('hidden');
+    // Limpiar el área de validación
+    document.getElementById('contenedor-validacion').innerHTML = '';
+    // Limpiar el input
+    document.getElementById('contenedor-input').value = '';
+}
+</script>
