@@ -1,9 +1,13 @@
+import logging
+
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .models import Contenedor, Queja, QuejaContenedor, validate_iso_6346
+
+logger = logging.getLogger(__name__)
 
 
 def index(request):
@@ -15,8 +19,7 @@ def buscar_contenedor(request):
     """Busca un contenedor por código ISO (HTMX)"""
     codigo = request.GET.get("codigo", "").upper().strip()
 
-    # Debug: imprimir si es HTMX
-    print(f"[DEBUG] Búsqueda - código: {codigo}, es_htmx: {request.htmx}")
+    logger.debug(f"Búsqueda - código: {codigo}, es_htmx: {request.htmx}")
 
     if not codigo:
         return HttpResponse("")
@@ -157,7 +160,7 @@ def quejas_sugerencias(request):
             errors.append("La descripción de la queja es obligatoria.")
         if not contenedor_iso:
             errors.append("El código de contenedor es obligatorio.")
-        elif contenedor_iso:
+        else:
             # Validar que el contenedor existe
             if not Contenedor.objects.filter(codigo_iso=contenedor_iso).exists():
                 errors.append("El código de contenedor no existe en el sistema.")
@@ -190,10 +193,9 @@ def quejas_sugerencias(request):
         )
 
         # Guardar imágenes (hasta 3)
-        for i, key in enumerate(["imagen1", "imagen2", "imagen3"], 1):
+        for key in ["imagen1", "imagen2", "imagen3"]:
             if key in request.FILES:
-                imagen = request.FILES[key]
-                setattr(queja, f"imagen{i}", imagen)
+                setattr(queja, key, request.FILES[key])
         queja.save()
 
         # Vincular contenedor

@@ -18,21 +18,8 @@
         {{ contenedor.tipo_tamaño }} • 
         {% if contenedor.direccion == 'IMPORT' %}Importación{% else %}Exportación{% endif %}
     </p>
-    {% if contenedor.transitario %}
     <p class="text-white/50 text-xs mt-1">Transitario: {{ contenedor.transitario.nombre_comercial|default:contenedor.transitario.razon_social }}</p>
-    {% endif %}
     
     <!-- Campo hidden con el código validado -->
     <input type="hidden" name="contenedor_iso" value="{{ contenedor.codigo_iso }}" id="contenedor-iso-hidden">
 </div>
-
-<script>
-function desvincularContenedor() {
-    // Mostrar nuevamente el campo de entrada
-    document.getElementById('contenedor-input-container').classList.remove('hidden');
-    // Limpiar el área de validación
-    document.getElementById('contenedor-validacion').innerHTML = '';
-    // Limpiar el input
-    document.getElementById('contenedor-input').value = '';
-}
-</script>
