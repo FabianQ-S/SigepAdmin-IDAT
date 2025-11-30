@@ -1,0 +1,330 @@
+{% extends 'pdf/admin_base.html' %}
+
+{% block title %}Ficha de Contenedor - {{ contenedor.codigo_iso }}{% endblock %}
+{% block document_title %}Ficha de Contenedor{% endblock %}
+{% block document_subtitle %}Documento Completo - {{ contenedor.codigo_iso }}{% endblock %}
+
+{% block content %}
+<!-- Información Principal del Contenedor -->
+<div class="section">
+    <h2 class="section-title">📦 Información del Contenedor</h2>
+    <div class="section-content">
+        <div class="two-columns">
+            <div>
+                <table>
+                    <tr>
+                        <th>Código ISO 6346</th>
+                        <td><span class="codigo-iso">{{ contenedor.codigo_iso }}</span></td>
+                    </tr>
+                    <tr>
+                        <th>BIC Propietario</th>
+                        <td>{{ contenedor.bic_propietario }}</td>
+                    </tr>
+                    <tr>
+                        <th>Tipo / Tamaño</th>
+                        <td>{{ contenedor.tipo_tamaño }}</td>
+                    </tr>
+                    <tr>
+                        <th>Dirección</th>
+                        <td>
+                            {% if contenedor.direccion == 'IMPORT' %}
+                                <span class="badge badge-info">Importación</span>
+                            {% else %}
+                                <span class="badge badge-secondary">Exportación</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>BL de Referencia</th>
+                        <td>{{ contenedor.bl_referencia }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div>
+                <table>
+                    <tr>
+                        <th>Peso Bruto (VGM)</th>
+                        <td>{{ contenedor.peso_bruto_kg|floatformat:2 }} kg</td>
+                    </tr>
+                    <tr>
+                        <th>Tara</th>
+                        <td>{% if contenedor.tara_kg %}{{ contenedor.tara_kg|floatformat:2 }} kg{% else %}—{% endif %}</td>
+                    </tr>
+                    <tr>
+                        <th>Número de Sello</th>
+                        <td>{{ contenedor.numero_sello }}</td>
+                    </tr>
+                    <tr>
+                        <th>Mercancía Declarada</th>
+                        <td>{{ contenedor.mercancia_declarada }}</td>
+                    </tr>
+                    <tr>
+                        <th>Mercancía Peligrosa</th>
+                        <td>
+                            {% if contenedor.mercancia_peligrosa %}
+                                <span class="badge badge-danger">⚠️ Sí</span>
+                            {% else %}
+                                <span class="badge badge-success">No</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ruta: Origen y Destino -->
+<div class="section">
+    <h2 class="section-title">🌍 Ruta del Contenedor</h2>
+    <div class="section-content">
+        <div class="two-columns">
+            <div>
+                <p class="text-bold text-muted mb-10">ORIGEN</p>
+                <table>
+                    <tr>
+                        <th>País</th>
+                        <td>{{ contenedor.origen_pais|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Ciudad</th>
+                        <td>{{ contenedor.origen_ciudad|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Puerto</th>
+                        <td>{{ contenedor.origen_puerto|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Remitente (Shipper)</th>
+                        <td>{{ contenedor.remitente|default:"—" }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div>
+                <p class="text-bold text-muted mb-10">DESTINO</p>
+                <table>
+                    <tr>
+                        <th>País</th>
+                        <td>{{ contenedor.destino_pais|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Ciudad</th>
+                        <td>{{ contenedor.destino_ciudad|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Puerto</th>
+                        <td>{{ contenedor.destino_puerto|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Consignatario</th>
+                        <td>{{ contenedor.consignatario|default:"—" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <table class="mt-10">
+            <tr>
+                <th style="width: 20%;">Carrier / Naviera</th>
+                <td>{{ contenedor.carrier|default:"—" }}</td>
+                <th style="width: 20%;">ETA Destino</th>
+                <td>{% if contenedor.fecha_eta_destino %}{{ contenedor.fecha_eta_destino|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- Información del Arribo -->
+<div class="section">
+    <h2 class="section-title">🚢 Información del Arribo</h2>
+    <div class="section-content">
+        <div class="two-columns">
+            <div>
+                <table>
+                    <tr>
+                        <th>Buque</th>
+                        <td>{{ contenedor.arribo.buque.nombre }}</td>
+                    </tr>
+                    <tr>
+                        <th>IMO Number</th>
+                        <td>{{ contenedor.arribo.buque.imo_number }}</td>
+                    </tr>
+                    <tr>
+                        <th>Naviera</th>
+                        <td>{{ contenedor.arribo.buque.naviera }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div>
+                <table>
+                    <tr>
+                        <th>ETA</th>
+                        <td>{{ contenedor.arribo.fecha_eta|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    <tr>
+                        <th>ETD</th>
+                        <td>{% if contenedor.arribo.fecha_etd %}{{ contenedor.arribo.fecha_etd|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+                    </tr>
+                    <tr>
+                        <th>Muelle / Berth</th>
+                        <td>{{ contenedor.arribo.muelle_berth }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transitario -->
+{% if contenedor.transitario %}
+<div class="section">
+    <h2 class="section-title">🚚 Información del Transitario</h2>
+    <div class="section-content">
+        <div class="two-columns">
+            <div>
+                <table>
+                    <tr>
+                        <th>Razón Social</th>
+                        <td>{{ contenedor.transitario.razon_social }}</td>
+                    </tr>
+                    <tr>
+                        <th>Nombre Comercial</th>
+                        <td>{{ contenedor.transitario.nombre_comercial|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>RUC / Tax ID</th>
+                        <td>{{ contenedor.transitario.identificador_tributario }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div>
+                <table>
+                    <tr>
+                        <th>Tipo de Servicio</th>
+                        <td>{{ contenedor.transitario.get_tipo_servicio_display }}</td>
+                    </tr>
+                    <tr>
+                        <th>Contacto</th>
+                        <td>{{ contenedor.transitario.contacto_principal }}</td>
+                    </tr>
+                    <tr>
+                        <th>Email</th>
+                        <td>{{ contenedor.transitario.email_contacto }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Estado de Aprobaciones -->
+<div class="section">
+    <h2 class="section-title">✅ Estado de Aprobaciones</h2>
+    <div class="section-content">
+        <table>
+            <tr>
+                <th style="width: 25%;">Aprobación Aduanera</th>
+                <td>
+                    {% if aprobacion_aduanera %}
+                        {% if aprobacion_aduanera.aprobado %}
+                            <span class="badge badge-success">✓ Aprobado</span>
+                            {% if aprobacion_aduanera.fecha_levante %}
+                                — Levante: {{ aprobacion_aduanera.fecha_levante|date:"d/m/Y" }}
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-warning">⏳ Pendiente</span>
+                        {% endif %}
+                        — N° Despacho: {{ aprobacion_aduanera.numero_despacho }}
+                    {% else %}
+                        <span class="badge badge-secondary">Sin registro</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>Aprobación Financiera</th>
+                <td>
+                    {% if aprobacion_financiera %}
+                        {% if aprobacion_financiera.fecha_pago %}
+                            <span class="badge badge-success">✓ Pagado</span>
+                            — Fecha: {{ aprobacion_financiera.fecha_pago|date:"d/m/Y" }}
+                        {% else %}
+                            <span class="badge badge-warning">⏳ Pendiente</span>
+                            {% if aprobacion_financiera.fecha_vencimiento %}
+                                — Vence: {{ aprobacion_financiera.fecha_vencimiento|date:"d/m/Y" }}
+                            {% endif %}
+                        {% endif %}
+                        — Factura: {{ aprobacion_financiera.numero_factura }} | USD ${{ aprobacion_financiera.monto_usd }}
+                    {% else %}
+                        <span class="badge badge-secondary">Sin registro</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>Pago Transitario</th>
+                <td>
+                    {% if aprobacion_pago_transitario %}
+                        {% if aprobacion_pago_transitario.pago_realizado %}
+                            <span class="badge badge-success">✓ Pagado</span>
+                            — Fecha: {{ aprobacion_pago_transitario.fecha_pago|date:"d/m/Y" }}
+                            | USD ${{ aprobacion_pago_transitario.monto_pagado }}
+                        {% else %}
+                            <span class="badge badge-warning">⏳ Pendiente</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge badge-secondary">Sin registro</span>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+        
+        <!-- Estado General -->
+        <div class="mt-10 text-center">
+            {% if contenedor.esta_liberado_aduana and contenedor.esta_pagado and contenedor.transitario_ha_pagado %}
+                <span class="badge badge-success" style="font-size: 12pt; padding: 8px 20px;">
+                    ✓ CONTENEDOR LISTO PARA RETIRO
+                </span>
+            {% else %}
+                <span class="badge badge-warning" style="font-size: 12pt; padding: 8px 20px;">
+                    ⏳ CONTENEDOR EN PROCESO
+                </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Timeline de Eventos -->
+{% if eventos %}
+<div class="section">
+    <h2 class="section-title">📋 Timeline de Eventos</h2>
+    <div class="section-content">
+        {% for evento in eventos %}
+        <div class="timeline-item">
+            <span class="timeline-date">{{ evento.fecha_hora|date:"d/m/Y H:i" }}</span>
+            <span class="timeline-event">{{ evento.get_tipo_evento_display }}</span>
+            <span class="timeline-location">— {{ evento.ubicacion_puerto }}, {{ evento.ubicacion_pais }}</span>
+            {% if evento.buque %}
+                <span class="text-muted">({{ evento.buque.nombre }})</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Ubicación Actual -->
+<div class="section">
+    <h2 class="section-title">📍 Ubicación Actual</h2>
+    <div class="section-content">
+        <table>
+            <tr>
+                <th style="width: 25%;">Ubicación en Puerto</th>
+                <td>{{ contenedor.ubicacion_actual }}</td>
+            </tr>
+            <tr>
+                <th>Fecha Retiro/Entrega (Cita)</th>
+                <td>{% if contenedor.fecha_retiro_transitario %}{{ contenedor.fecha_retiro_transitario|date:"d/m/Y H:i" }}{% else %}Sin cita programada{% endif %}</td>
+            </tr>
+        </table>
+    </div>
+</div>
+{% endblock %}

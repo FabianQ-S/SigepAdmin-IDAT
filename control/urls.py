@@ -15,4 +15,26 @@ urlpatterns = [
         views.validar_contenedor_queja,
         name="validar_contenedor_queja",
     ),
+    # PDFs - Admin
+    path(
+        "pdf/ficha/<str:codigo_iso>/",
+        views.pdf_ficha_contenedor,
+        name="pdf_ficha_contenedor",
+    ),
+    path(
+        "pdf/manifiesto/<int:arribo_id>/",
+        views.pdf_manifiesto_arribo,
+        name="pdf_manifiesto_arribo",
+    ),
+    path(
+        "pdf/gate-pass/<str:codigo_iso>/",
+        views.pdf_gate_pass,
+        name="pdf_gate_pass",
+    ),
+    # PDF - Cliente (versión censurada)
+    path(
+        "pdf/tracking/<str:codigo_iso>/",
+        views.pdf_cliente_contenedor,
+        name="pdf_cliente_contenedor",
+    ),
 ]

@@ -27,12 +27,24 @@
                 </p>
             </div>
             
-            {% if contenedor.fecha_eta_destino %}
-            <div class="text-right">
-                <p class="text-xs text-white/60 uppercase tracking-wide">ETA Destino</p>
-                <p class="text-xl font-bold text-sky-400">{{ contenedor.fecha_eta_destino|date:"Y-m-d" }}</p>
+            <div class="flex items-center gap-3">
+                <!-- Botón Descargar PDF -->
+                <a href="{% url 'control:pdf_cliente_contenedor' contenedor.codigo_iso %}" 
+                   target="_blank"
+                   class="btn btn-outline btn-info btn-sm gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Descargar PDF
+                </a>
+                
+                {% if contenedor.fecha_eta_destino %}
+                <div class="text-right">
+                    <p class="text-xs text-white/60 uppercase tracking-wide">ETA Destino</p>
+                    <p class="text-xl font-bold text-sky-400">{{ contenedor.fecha_eta_destino|date:"Y-m-d" }}</p>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
     </div>
     

@@ -1,0 +1,328 @@
+{% extends 'pdf/admin_base.html' %}
+{% load static %}
+
+{% block title %}Gate Pass - {{ contenedor.codigo_iso }}{% endblock %}
+{% block document_title %}GATE PASS / ORDEN DE ENTREGA{% endblock %}
+{% block document_subtitle %}Autorización de Salida de Contenedor{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .gate-pass-header {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    
+    .gate-pass-header h1 {
+        margin: 0;
+        font-size: 28px;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+    }
+    
+    .gate-pass-number {
+        background: #fff;
+        color: #28a745;
+        padding: 10px 20px;
+        border-radius: 5px;
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 24px;
+        font-weight: bold;
+        font-family: 'Courier New', monospace;
+    }
+    
+    .validity-box {
+        border: 3px dashed #28a745;
+        padding: 15px;
+        text-align: center;
+        margin: 20px 0;
+        background: #e8f5e9;
+    }
+    
+    .validity-box h3 {
+        color: #28a745;
+        margin: 0 0 10px 0;
+    }
+    
+    .approval-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin: 15px 0;
+    }
+    
+    .approval-item {
+        border: 1px solid #ddd;
+        padding: 15px;
+        text-align: center;
+        background: #f9f9f9;
+    }
+    
+    .approval-item.approved {
+        border-color: #28a745;
+        background: #e8f5e9;
+    }
+    
+    .approval-item .icon {
+        font-size: 32px;
+        margin-bottom: 10px;
+    }
+    
+    .approval-item h4 {
+        margin: 0 0 5px 0;
+        font-size: 12px;
+        text-transform: uppercase;
+        color: #666;
+    }
+    
+    .approval-item .status {
+        font-size: 14px;
+        font-weight: bold;
+    }
+    
+    .approval-item.approved .status {
+        color: #28a745;
+    }
+    
+    .signature-area {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+        margin-top: 40px;
+        padding-top: 20px;
+    }
+    
+    .signature-box {
+        text-align: center;
+    }
+    
+    .signature-line {
+        border-top: 1px solid #333;
+        margin-top: 60px;
+        padding-top: 10px;
+    }
+    
+    .qr-placeholder {
+        border: 2px dashed #ccc;
+        width: 100px;
+        height: 100px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: #999;
+    }
+    
+    .warning-box {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        padding: 10px 15px;
+        margin: 15px 0;
+        font-size: 11px;
+    }
+    
+    .warning-box strong {
+        color: #856404;
+    }
+    
+    @media print {
+        .gate-pass-header {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Gate Pass Header -->
+<div class="gate-pass-header">
+    <h1>✓ Gate Pass Autorizado</h1>
+    <div class="gate-pass-number">GP-{{ contenedor.codigo_iso }}-{{ fecha_emision|date:"ymd" }}</div>
+</div>
+
+<!-- Validez -->
+<div class="validity-box">
+    <h3>⏱ VÁLIDO POR {{ horas_validez }} HORAS</h3>
+    <p style="margin: 5px 0;">
+        <strong>Desde:</strong> {{ fecha_emision|date:"d/m/Y H:i" }}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <strong>Hasta:</strong> {{ fecha_vencimiento|date:"d/m/Y H:i" }}
+    </p>
+</div>
+
+<!-- Información del Contenedor -->
+<div class="section">
+    <h2 class="section-title">📦 Contenedor Autorizado</h2>
+    <div class="section-content">
+        <div class="two-columns">
+            <div>
+                <table>
+                    <tr>
+                        <th>Código ISO</th>
+                        <td><strong style="font-size: 18px;">{{ contenedor.codigo_iso }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Tipo / Tamaño</th>
+                        <td>{{ contenedor.tipo_tamaño }}</td>
+                    </tr>
+                    <tr>
+                        <th>Dirección</th>
+                        <td>
+                            {% if contenedor.direccion == 'IMPORT' %}
+                                <span class="badge badge-info">IMPORTACIÓN</span>
+                            {% else %}
+                                <span class="badge badge-secondary">EXPORTACIÓN</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>BL Referencia</th>
+                        <td>{{ contenedor.bl_referencia }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div>
+                <table>
+                    <tr>
+                        <th>Transitario</th>
+                        <td>{{ contenedor.transitario.nombre_comercial|default:contenedor.transitario.razon_social }}</td>
+                    </tr>
+                    <tr>
+                        <th>Peso Bruto</th>
+                        <td>{{ contenedor.peso_bruto_kg|floatformat:0 }} kg</td>
+                    </tr>
+                    <tr>
+                        <th>Origen</th>
+                        <td>{{ contenedor.origen_puerto }}, {{ contenedor.origen_pais }}</td>
+                    </tr>
+                    <tr>
+                        <th>Destino</th>
+                        <td>{{ contenedor.destino_puerto }}, {{ contenedor.destino_pais }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estado de Aprobaciones -->
+<div class="section">
+    <h2 class="section-title">✅ Estado de Aprobaciones</h2>
+    <div class="section-content">
+        <div class="approval-grid">
+            <div class="approval-item {% if contenedor.aprobacion_aduanera.esta_aprobado %}approved{% endif %}">
+                <div class="icon">🏛️</div>
+                <h4>Aduana</h4>
+                <div class="status">
+                    {% if contenedor.aprobacion_aduanera.esta_aprobado %}
+                        ✓ LIBERADO
+                    {% else %}
+                        ⏳ PENDIENTE
+                    {% endif %}
+                </div>
+                {% if contenedor.aprobacion_aduanera.fecha_levante %}
+                <small>{{ contenedor.aprobacion_aduanera.fecha_levante|date:"d/m/Y" }}</small>
+                {% endif %}
+            </div>
+            
+            <div class="approval-item {% if contenedor.aprobacion_financiera.esta_pagado %}approved{% endif %}">
+                <div class="icon">💰</div>
+                <h4>Pago Terminal</h4>
+                <div class="status">
+                    {% if contenedor.aprobacion_financiera.esta_pagado %}
+                        ✓ PAGADO
+                    {% else %}
+                        ⏳ PENDIENTE
+                    {% endif %}
+                </div>
+                {% if contenedor.aprobacion_financiera.fecha_pago %}
+                <small>{{ contenedor.aprobacion_financiera.fecha_pago|date:"d/m/Y" }}</small>
+                {% endif %}
+            </div>
+            
+            <div class="approval-item {% if contenedor.aprobacion_pago_transitario.esta_pagado %}approved{% endif %}">
+                <div class="icon">🚚</div>
+                <h4>Pago Transitario</h4>
+                <div class="status">
+                    {% if contenedor.aprobacion_pago_transitario.esta_pagado %}
+                        ✓ PAGADO
+                    {% else %}
+                        ⏳ PENDIENTE
+                    {% endif %}
+                </div>
+                {% if contenedor.aprobacion_pago_transitario.fecha_pago %}
+                <small>{{ contenedor.aprobacion_pago_transitario.fecha_pago|date:"d/m/Y" }}</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Información del Retiro -->
+<div class="section">
+    <h2 class="section-title">🚛 Información de Retiro</h2>
+    <div class="section-content">
+        <table>
+            <tr>
+                <th style="width: 25%;">Consignatario</th>
+                <td>{{ contenedor.consignatario|default:"—" }}</td>
+            </tr>
+            <tr>
+                <th>Transitario</th>
+                <td>{{ contenedor.transitario.nombre_comercial|default:contenedor.transitario.razon_social }}</td>
+            </tr>
+            <tr>
+                <th>Ubicación Actual</th>
+                <td>{{ contenedor.ubicacion_actual|default:"Terminal principal" }}</td>
+            </tr>
+        </table>
+        
+        <div class="warning-box">
+            <strong>⚠️ IMPORTANTE:</strong> Este Gate Pass debe ser presentado en la garita de salida junto con la identificación del conductor y los documentos del vehículo. El contenedor solo podrá retirarse durante el horario de operaciones del terminal (06:00 - 22:00).
+        </div>
+    </div>
+</div>
+
+<!-- Área de Firmas -->
+<div class="section">
+    <h2 class="section-title">✍️ Autorización</h2>
+    <div class="section-content">
+        <div class="signature-area">
+            <div class="signature-box">
+                <div class="qr-placeholder">
+                    [QR Code]
+                </div>
+                <p style="margin-top: 10px; font-size: 10px; color: #666;">
+                    Escanear para verificar autenticidad
+                </p>
+            </div>
+            <div class="signature-box">
+                <div class="signature-line">
+                    <strong>Autorizado por:</strong><br>
+                    Sistema SIGEP Admin<br>
+                    <small>Documento generado automáticamente</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notas al pie -->
+<div class="section">
+    <div class="section-content" style="font-size: 10px; color: #666;">
+        <p><strong>Condiciones de uso:</strong></p>
+        <ul style="margin: 5px 0; padding-left: 20px;">
+            <li>Este documento es válido únicamente para el contenedor indicado.</li>
+            <li>La validez de este Gate Pass está sujeta a la vigencia de las aprobaciones.</li>
+            <li>Cualquier alteración de este documento lo invalida automáticamente.</li>
+            <li>El terminal no se responsabiliza por demoras causadas por documentación incompleta.</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

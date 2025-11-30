@@ -1,11 +1,18 @@
+import base64
 import logging
+from collections import defaultdict
+from datetime import timedelta
+from pathlib import Path
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
+from django.utils import timezone
 
-from .models import Contenedor, Queja, QuejaContenedor, validate_iso_6346
+from .models import Arribo, Contenedor, Queja, QuejaContenedor, validate_iso_6346
 
 logger = logging.getLogger(__name__)
 
@@ -221,3 +228,206 @@ def quejas_sugerencias(request):
             "categorias": Queja.CATEGORIA_CHOICES,
         },
     )
+
+
+# =============================================
+# GENERACIÓN DE PDFs CON WEASYPRINT
+# =============================================
+
+
+def _get_logo_base64(logo_name):
+    """Obtiene el logo como base64 para incrustar en el PDF"""
+    logo_path = Path(settings.BASE_DIR) / "theme" / "static" / "images" / logo_name
+    if logo_path.exists():
+        with open(logo_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    return None
+
+
+def _generate_pdf_response(html_content, filename):
+    """Genera una respuesta HTTP con el PDF usando WeasyPrint"""
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        return HttpResponse(
+            "WeasyPrint no está instalado. Ejecute: pip install weasyprint",
+            status=500,
+        )
+
+    pdf = HTML(string=html_content).write_pdf()
+
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+def pdf_ficha_contenedor(request, codigo_iso):
+    """
+    Genera PDF de Ficha Completa del Contenedor (Admin)
+    Incluye toda la información: datos, origen/destino, aprobaciones, timeline
+    """
+    contenedor = get_object_or_404(
+        Contenedor.objects.select_related(
+            "arribo",
+            "arribo__buque",
+            "transitario",
+            "aprobacion_aduanera",
+            "aprobacion_financiera",
+            "aprobacion_pago_transitario",
+        ).prefetch_related("eventos"),
+        codigo_iso=codigo_iso.upper(),
+    )
+
+    eventos = contenedor.eventos.select_related("buque").order_by("-fecha_hora")
+    logo_base64 = _get_logo_base64("SigepAdminLogo.jpeg")
+
+    html_content = render_to_string(
+        "pdf/admin_ficha_contenedor.html",
+        {
+            "contenedor": contenedor,
+            "eventos": eventos,
+            "logo_base64": logo_base64,
+            "fecha_generacion": timezone.now(),
+        },
+    )
+
+    filename = f"ficha_contenedor_{codigo_iso}_{timezone.now().strftime('%Y%m%d')}.pdf"
+    return _generate_pdf_response(html_content, filename)
+
+
+def pdf_manifiesto_arribo(request, arribo_id):
+    """
+    Genera PDF del Manifiesto de Arribo (Admin)
+    Lista de todos los contenedores asociados al arribo de un buque
+    """
+    arribo = get_object_or_404(
+        Arribo.objects.select_related("buque").prefetch_related(
+            "contenedores",
+            "contenedores__transitario",
+            "contenedores__aprobacion_aduanera",
+            "contenedores__aprobacion_financiera",
+        ),
+        pk=arribo_id,
+    )
+
+    contenedores = arribo.contenedores.all().order_by("direccion", "codigo_iso")
+    total_import = contenedores.filter(direccion="IMPORT").count()
+    total_export = contenedores.filter(direccion="EXPORT").count()
+
+    # Resumen por transitario
+    transitarios_dict = defaultdict(lambda: {"total": 0, "import": 0, "export": 0})
+    for c in contenedores:
+        nombre = c.transitario.nombre_comercial if c.transitario else "Sin transitario"
+        transitarios_dict[nombre]["total"] += 1
+        if c.direccion == "IMPORT":
+            transitarios_dict[nombre]["import"] += 1
+        else:
+            transitarios_dict[nombre]["export"] += 1
+
+    resumen_transitarios = [{"nombre": k, **v} for k, v in transitarios_dict.items()]
+
+    logo_base64 = _get_logo_base64("SigepAdminLogo.jpeg")
+
+    html_content = render_to_string(
+        "pdf/admin_manifiesto_arribo.html",
+        {
+            "arribo": arribo,
+            "contenedores": contenedores,
+            "total_import": total_import,
+            "total_export": total_export,
+            "resumen_transitarios": resumen_transitarios,
+            "logo_base64": logo_base64,
+            "fecha_generacion": timezone.now(),
+        },
+    )
+
+    buque_name = arribo.buque.nombre.replace(" ", "_")
+    fecha = arribo.fecha_eta.strftime("%Y%m%d")
+    filename = f"manifiesto_arribo_{buque_name}_{fecha}.pdf"
+    return _generate_pdf_response(html_content, filename)
+
+
+def pdf_gate_pass(request, codigo_iso):
+    """
+    Genera PDF del Gate Pass / Orden de Entrega (Admin)
+    Documento de autorización para retiro del contenedor
+    Solo se genera si todas las aprobaciones están completas
+    """
+    contenedor = get_object_or_404(
+        Contenedor.objects.select_related(
+            "arribo",
+            "arribo__buque",
+            "transitario",
+            "aprobacion_aduanera",
+            "aprobacion_financiera",
+            "aprobacion_pago_transitario",
+        ),
+        codigo_iso=codigo_iso.upper(),
+    )
+
+    # Verificar que todas las aprobaciones estén completas
+    aduana_ok = contenedor.esta_liberado_aduana
+    pago_ok = contenedor.esta_pagado
+    transitario_ok = contenedor.transitario_ha_pagado
+
+    if not (aduana_ok and pago_ok and transitario_ok):
+        return HttpResponse(
+            "No se puede generar Gate Pass: faltan aprobaciones pendientes.",
+            status=400,
+        )
+
+    fecha_emision = timezone.now()
+    horas_validez = 48
+    fecha_vencimiento = fecha_emision + timedelta(hours=horas_validez)
+
+    logo_base64 = _get_logo_base64("SigepAdminLogo.jpeg")
+
+    html_content = render_to_string(
+        "pdf/admin_gate_pass.html",
+        {
+            "contenedor": contenedor,
+            "fecha_emision": fecha_emision,
+            "fecha_vencimiento": fecha_vencimiento,
+            "horas_validez": horas_validez,
+            "logo_base64": logo_base64,
+        },
+    )
+
+    filename = f"gate_pass_{codigo_iso}_{fecha_emision.strftime('%Y%m%d')}.pdf"
+    return _generate_pdf_response(html_content, filename)
+
+
+def pdf_cliente_contenedor(request, codigo_iso):
+    """
+    Genera PDF de Ficha del Contenedor para Cliente (Censurado)
+    Versión pública con información sensible oculta
+    """
+    contenedor = get_object_or_404(
+        Contenedor.objects.select_related(
+            "arribo",
+            "arribo__buque",
+            "transitario",
+            "aprobacion_aduanera",
+            "aprobacion_financiera",
+            "aprobacion_pago_transitario",
+        ).prefetch_related("eventos"),
+        codigo_iso=codigo_iso.upper(),
+    )
+
+    eventos = contenedor.eventos.select_related("buque").order_by("-fecha_hora")[:10]
+    ultimo_evento = contenedor.eventos.order_by("-fecha_hora").first()
+    logo_base64 = _get_logo_base64("NuevoLogo.png")
+
+    html_content = render_to_string(
+        "pdf/cliente_ficha_contenedor.html",
+        {
+            "contenedor": contenedor,
+            "eventos": eventos,
+            "ultimo_evento": ultimo_evento,
+            "logo_base64": logo_base64,
+            "fecha_generacion": timezone.now(),
+        },
+    )
+
+    filename = f"seguimiento_{codigo_iso}_{timezone.now().strftime('%Y%m%d')}.pdf"
+    return _generate_pdf_response(html_content, filename)

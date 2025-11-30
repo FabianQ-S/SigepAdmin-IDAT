@@ -1,0 +1,242 @@
+{% extends 'pdf/admin_base.html' %}
+
+{% block title %}Manifiesto de Arribo - {{ arribo.buque.nombre }}{% endblock %}
+{% block document_title %}Manifiesto de Arribo{% endblock %}
+{% block document_subtitle %}{{ arribo.buque.nombre }} - {{ arribo.fecha_eta|date:"d/m/Y" }}{% endblock %}
+
+{% block content %}
+<!-- Información del Buque -->
+<div class="section">
+    <h2 class="section-title">🚢 Información del Buque</h2>
+    <div class="section-content">
+        <div class="two-columns">
+            <div>
+                <table>
+                    <tr>
+                        <th>Nombre del Buque</th>
+                        <td><strong>{{ arribo.buque.nombre }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>IMO Number</th>
+                        <td>{{ arribo.buque.imo_number }}</td>
+                    </tr>
+                    <tr>
+                        <th>Naviera</th>
+                        <td>{{ arribo.buque.naviera }}</td>
+                    </tr>
+                    <tr>
+                        <th>Pabellón / Bandera</th>
+                        <td>{{ arribo.buque.pabellon_bandera }}</td>
+                    </tr>
+                </table>
+            </div>
+            <div>
+                <table>
+                    <tr>
+                        <th>Call Sign</th>
+                        <td>{{ arribo.buque.callsign }}</td>
+                    </tr>
+                    <tr>
+                        <th>Capacidad TEU</th>
+                        <td>{{ arribo.buque.teu_capacidad }} TEU</td>
+                    </tr>
+                    <tr>
+                        <th>Eslora</th>
+                        <td>{{ arribo.buque.eslora_metros }} m</td>
+                    </tr>
+                    <tr>
+                        <th>Manga</th>
+                        <td>{{ arribo.buque.manga_metros }} m</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Información del Arribo -->
+<div class="section">
+    <h2 class="section-title">📅 Información del Arribo</h2>
+    <div class="section-content">
+        <div class="two-columns">
+            <div>
+                <table>
+                    <tr>
+                        <th>ETA (Llegada Estimada)</th>
+                        <td><strong>{{ arribo.fecha_eta|date:"d/m/Y H:i" }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>ETD (Salida Estimada)</th>
+                        <td>{% if arribo.fecha_etd %}{{ arribo.fecha_etd|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+                    </tr>
+                    <tr>
+                        <th>Arribo Real</th>
+                        <td>{% if arribo.fecha_arribo_real %}{{ arribo.fecha_arribo_real|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+                    </tr>
+                </table>
+            </div>
+            <div>
+                <table>
+                    <tr>
+                        <th>Muelle / Berth</th>
+                        <td>{{ arribo.muelle_berth }}</td>
+                    </tr>
+                    <tr>
+                        <th>Tipo de Operación</th>
+                        <td>{{ arribo.get_tipo_operacion_display }}</td>
+                    </tr>
+                    <tr>
+                        <th>Estado</th>
+                        <td>
+                            {% if arribo.estado == 'COMPLETADO' %}
+                                <span class="badge badge-success">{{ arribo.get_estado_display }}</span>
+                            {% elif arribo.estado == 'CANCELADO' %}
+                                <span class="badge badge-danger">{{ arribo.get_estado_display }}</span>
+                            {% elif arribo.estado == 'OPERANDO' %}
+                                <span class="badge badge-info">{{ arribo.get_estado_display }}</span>
+                            {% else %}
+                                <span class="badge badge-warning">{{ arribo.get_estado_display }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumen de Contenedores -->
+<div class="section">
+    <h2 class="section-title">📊 Resumen de Operación</h2>
+    <div class="section-content">
+        <table>
+            <tr>
+                <th style="width: 30%;">Contenedores Descarga (Import)</th>
+                <td>
+                    <strong>{{ arribo.contenedores_descarga }}</strong> declarados
+                    | <strong>{{ total_import }}</strong> registrados
+                </td>
+            </tr>
+            <tr>
+                <th>Contenedores Carga (Export)</th>
+                <td>
+                    <strong>{{ arribo.contenedores_carga }}</strong> declarados
+                    | <strong>{{ total_export }}</strong> registrados
+                </td>
+            </tr>
+            <tr>
+                <th>Total Contenedores</th>
+                <td>
+                    <strong>{{ contenedores|length }}</strong> contenedores en este manifiesto
+                </td>
+            </tr>
+            <tr>
+                <th>Servicios Contratados</th>
+                <td>{{ arribo.servicios_contratados }}</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- Listado de Contenedores -->
+<div class="section">
+    <h2 class="section-title">📦 Listado de Contenedores</h2>
+    <div class="section-content">
+        {% if contenedores %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Código ISO</th>
+                    <th>Tipo</th>
+                    <th>Dirección</th>
+                    <th>BL Referencia</th>
+                    <th>Transitario</th>
+                    <th>Peso (kg)</th>
+                    <th>Aduana</th>
+                    <th>Pago</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in contenedores %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td><strong>{{ c.codigo_iso }}</strong></td>
+                    <td>{{ c.tipo_tamaño }}</td>
+                    <td>
+                        {% if c.direccion == 'IMPORT' %}
+                            <span class="badge badge-info">IMP</span>
+                        {% else %}
+                            <span class="badge badge-secondary">EXP</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ c.bl_referencia }}</td>
+                    <td>{{ c.transitario.nombre_comercial|default:c.transitario.razon_social|truncatechars:20 }}</td>
+                    <td>{{ c.peso_bruto_kg|floatformat:0 }}</td>
+                    <td>
+                        {% if c.esta_liberado_aduana %}
+                            <span class="text-success">✓</span>
+                        {% else %}
+                            <span class="text-warning">⏳</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if c.esta_pagado %}
+                            <span class="text-success">✓</span>
+                        {% else %}
+                            <span class="text-warning">⏳</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="text-center text-muted">No hay contenedores registrados para este arribo.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Resumen por Transitario -->
+{% if resumen_transitarios %}
+<div class="section">
+    <h2 class="section-title">🚚 Resumen por Transitario</h2>
+    <div class="section-content">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Transitario</th>
+                    <th>Contenedores</th>
+                    <th>Import</th>
+                    <th>Export</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in resumen_transitarios %}
+                <tr>
+                    <td style="text-align: left;">{{ t.nombre }}</td>
+                    <td>{{ t.total }}</td>
+                    <td>{{ t.import }}</td>
+                    <td>{{ t.export }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Notas -->
+<div class="section">
+    <h2 class="section-title">📝 Notas</h2>
+    <div class="section-content">
+        <p class="text-muted">
+            Este manifiesto contiene la información de todos los contenedores asociados al arribo del buque 
+            <strong>{{ arribo.buque.nombre }}</strong> (IMO: {{ arribo.buque.imo_number }}).
+        </p>
+        <p class="text-muted mt-10">
+            Leyenda: ✓ = Aprobado/Completado | ⏳ = Pendiente | IMP = Importación | EXP = Exportación
+        </p>
+    </div>
+</div>
+{% endblock %}

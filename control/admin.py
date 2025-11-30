@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.urls import reverse
 from django.utils.html import format_html
 
 from .models import (
@@ -204,6 +205,7 @@ class ArriboAdmin(admin.ModelAdmin):
         "contenedores_descarga",
         "contenedores_carga",
         "total_contenedores_badge",
+        "descargar_manifiesto",
     ]
     list_filter = ["estado", "tipo_operacion", "fecha_eta", "buque__naviera"]
     search_fields = ["buque__nombre", "buque__imo_number", "muelle_berth"]
@@ -233,6 +235,19 @@ class ArriboAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+    def descargar_manifiesto(self, obj):
+        """Botón para descargar el Manifiesto de Arribo en PDF"""
+        url = reverse("control:pdf_manifiesto_arribo", args=[obj.pk])
+        return format_html(
+            '<a href="{}" class="button" target="_blank" '
+            'style="background-color: #417690; color: white; padding: 5px 10px; '
+            'border-radius: 4px; text-decoration: none; font-size: 11px;">'
+            "📄 Manifiesto PDF</a>",
+            url,
+        )
+
+    descargar_manifiesto.short_description = "PDF"
 
     def total_contenedores(self, obj):
         """Total de contenedores registrados en el sistema"""
@@ -284,6 +299,7 @@ class ContenedorAdmin(admin.ModelAdmin):
         "ultimo_estado_badge",
         "aprobaciones_badge",
         "estado_completo_badge",
+        "acciones_pdf",
     ]
     list_filter = [
         "direccion",
@@ -368,6 +384,54 @@ class ContenedorAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+    def acciones_pdf(self, obj):
+        """Botones para descargar PDFs del contenedor"""
+        ficha_url = reverse("control:pdf_ficha_contenedor", args=[obj.codigo_iso])
+
+        # Verificar si está listo para Gate Pass
+        aduana_ok = (
+            hasattr(obj, "aprobacion_aduanera") and obj.aprobacion_aduanera.aprobado
+        )
+        financiera_ok = (
+            hasattr(obj, "aprobacion_financiera") and obj.aprobacion_financiera.aprobado
+        )
+        transitario_ok = (
+            hasattr(obj, "aprobacion_pago_transitario")
+            and obj.aprobacion_pago_transitario.pago_realizado
+        )
+        puede_gate_pass = aduana_ok and financiera_ok and transitario_ok
+
+        html = f'''
+        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <a href="{ficha_url}" target="_blank"
+               style="background-color: #417690; color: white; padding: 4px 8px;
+                      border-radius: 4px; text-decoration: none; font-size: 10px;">
+               📄 Ficha
+            </a>
+        '''
+
+        if puede_gate_pass:
+            gate_pass_url = reverse("control:pdf_gate_pass", args=[obj.codigo_iso])
+            html += f'''
+            <a href="{gate_pass_url}" target="_blank"
+               style="background-color: #28a745; color: white; padding: 4px 8px;
+                      border-radius: 4px; text-decoration: none; font-size: 10px;">
+               🚛 Gate Pass
+            </a>
+            '''
+        else:
+            html += """
+            <span style="background-color: #6c757d; color: white; padding: 4px 8px;
+                         border-radius: 4px; font-size: 10px; opacity: 0.6;">
+               🚛 Gate Pass
+            </span>
+            """
+
+        html += "</div>"
+        return format_html(html)
+
+    acciones_pdf.short_description = "PDF"
 
     def ruta_resumen(self, obj):
         """Muestra resumen de la ruta origen -> destino"""

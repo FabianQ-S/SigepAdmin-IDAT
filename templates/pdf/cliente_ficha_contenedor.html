@@ -1,0 +1,517 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Seguimiento de Contenedor{% endblock %}</title>
+    <style>
+        /* ========================================
+           CLIENTE PDF - Diseño Frontend (Nord/DaisyUI)
+           ======================================== */
+        
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 210mm;
+            min-height: 297mm;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #e2e8f0;
+            background: #1e293b;
+            padding: 20mm;
+        }
+        
+        /* Header con branding cliente */
+        .header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo-section img {
+            height: 50px;
+            width: auto;
+        }
+        
+        .brand-text h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0ea5e9;
+            margin: 0;
+        }
+        
+        .brand-text p {
+            font-size: 11px;
+            color: #94a3b8;
+            margin: 2px 0 0 0;
+        }
+        
+        .header-meta {
+            text-align: right;
+            color: #94a3b8;
+            font-size: 10px;
+        }
+        
+        .header-meta .date {
+            font-size: 12px;
+            color: #cbd5e1;
+        }
+        
+        /* Container Badge */
+        .container-badge {
+            background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .container-badge h2 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            margin: 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .container-badge .subtitle {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        /* Secciones */
+        .section {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            background: #1e293b;
+            padding: 12px 20px;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-header .icon {
+            font-size: 18px;
+        }
+        
+        .section-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f1f5f9;
+            margin: 0;
+        }
+        
+        .section-content {
+            padding: 15px 20px;
+        }
+        
+        /* Grid de info */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .info-item .label {
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 3px;
+        }
+        
+        .info-item .value {
+            font-size: 13px;
+            color: #f1f5f9;
+            font-weight: 500;
+        }
+        
+        /* Estado Badge */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-badge.success {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        
+        .status-badge.warning {
+            background: rgba(234, 179, 8, 0.2);
+            color: #facc15;
+            border: 1px solid rgba(234, 179, 8, 0.3);
+        }
+        
+        .status-badge.info {
+            background: rgba(14, 165, 233, 0.2);
+            color: #38bdf8;
+            border: 1px solid rgba(14, 165, 233, 0.3);
+        }
+        
+        /* Aprobaciones Grid */
+        .approvals-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        
+        .approval-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .approval-card.approved {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+        }
+        
+        .approval-card .icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .approval-card h4 {
+            font-size: 11px;
+            color: #94a3b8;
+            margin: 0 0 5px 0;
+            text-transform: uppercase;
+        }
+        
+        .approval-card .status {
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .approval-card.approved .status {
+            color: #4ade80;
+        }
+        
+        .approval-card:not(.approved) .status {
+            color: #fbbf24;
+        }
+        
+        /* Timeline de eventos */
+        .timeline {
+            position: relative;
+            padding-left: 25px;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #334155;
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-bottom: 15px;
+        }
+        
+        .timeline-item:last-child {
+            padding-bottom: 0;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -21px;
+            top: 5px;
+            width: 10px;
+            height: 10px;
+            background: #0ea5e9;
+            border-radius: 50%;
+            border: 2px solid #1e293b;
+        }
+        
+        .timeline-item .date {
+            font-size: 10px;
+            color: #64748b;
+        }
+        
+        .timeline-item .event {
+            font-size: 12px;
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+        
+        .timeline-item .location {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+        
+        /* Footer */
+        .footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #334155;
+            text-align: center;
+            color: #64748b;
+            font-size: 10px;
+        }
+        
+        .footer a {
+            color: #0ea5e9;
+            text-decoration: none;
+        }
+        
+        /* Censura info sensible */
+        .censored {
+            filter: blur(3px);
+            user-select: none;
+        }
+        
+        .censored-text {
+            color: #64748b;
+            font-style: italic;
+        }
+        
+        /* Print adjustments */
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            
+            .section {
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-content">
+            <div class="logo-section">
+                {% if logo_base64 %}
+                <img src="data:image/png;base64,{{ logo_base64 }}" alt="SIGEP">
+                {% endif %}
+                <div class="brand-text">
+                    <h1>SIGEP</h1>
+                    <p>Sistema de Gestión Portuaria</p>
+                </div>
+            </div>
+            <div class="header-meta">
+                <div class="date">{{ fecha_generacion|date:"d/m/Y H:i" }}</div>
+                <div>Documento de consulta</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Container Badge -->
+    <div class="container-badge">
+        <h2>{{ contenedor.codigo_iso }}</h2>
+        <div class="subtitle">{{ contenedor.tipo_tamaño }} | {{ contenedor.get_direccion_display }}</div>
+    </div>
+    
+    <!-- Estado Actual -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">📍</span>
+            <h3>Estado Actual</h3>
+        </div>
+        <div class="section-content">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="label">Último Evento</span>
+                    <span class="value">
+                        {% if ultimo_evento %}
+                            {{ ultimo_evento.get_tipo_evento_display }}
+                        {% else %}
+                            Sin eventos registrados
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Fecha</span>
+                    <span class="value">
+                        {% if ultimo_evento %}
+                            {{ ultimo_evento.fecha_hora|date:"d/m/Y H:i" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Ubicación</span>
+                    <span class="value">
+                        {% if ultimo_evento %}
+                            {{ ultimo_evento.ubicacion_puerto|default:"Terminal principal" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Listo para Retiro</span>
+                    <span class="value">
+                        {% if contenedor.esta_liberado_aduana and contenedor.esta_pagado %}
+                            <span class="status-badge success">✓ Sí</span>
+                        {% else %}
+                            <span class="status-badge warning">Pendiente</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Información General (parcialmente censurada) -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">📦</span>
+            <h3>Información del Contenedor</h3>
+        </div>
+        <div class="section-content">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="label">Tipo</span>
+                    <span class="value">{{ contenedor.tipo_tamaño }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Dirección</span>
+                    <span class="value">
+                        <span class="status-badge info">{{ contenedor.get_direccion_display }}</span>
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Puerto Origen</span>
+                    <span class="value">{{ contenedor.puerto_origen }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Puerto Destino</span>
+                    <span class="value">{{ contenedor.puerto_destino }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">BL Referencia</span>
+                    <span class="value censored-text">Información restringida</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Transitario</span>
+                    <span class="value">{{ contenedor.transitario.nombre_comercial|default:contenedor.transitario.razon_social }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Estado de Aprobaciones -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">✅</span>
+            <h3>Estado de Aprobaciones</h3>
+        </div>
+        <div class="section-content">
+            <div class="approvals-grid">
+                <div class="approval-card {% if contenedor.esta_liberado_aduana %}approved{% endif %}">
+                    <div class="icon">🏛️</div>
+                    <h4>Aduana</h4>
+                    <div class="status">
+                        {% if contenedor.esta_liberado_aduana %}✓ Liberado{% else %}⏳ En trámite{% endif %}
+                    </div>
+                </div>
+                <div class="approval-card {% if contenedor.esta_pagado %}approved{% endif %}">
+                    <div class="icon">💰</div>
+                    <h4>Pago Terminal</h4>
+                    <div class="status">
+                        {% if contenedor.esta_pagado %}✓ Completado{% else %}⏳ Pendiente{% endif %}
+                    </div>
+                </div>
+                <div class="approval-card {% if contenedor.transitario_ha_pagado %}approved{% endif %}">
+                    <div class="icon">🚚</div>
+                    <h4>Pago Transitario</h4>
+                    <div class="status">
+                        {% if contenedor.transitario_ha_pagado %}✓ Completado{% else %}⏳ Pendiente{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Timeline de Eventos -->
+    <div class="section">
+        <div class="section-header">
+            <span class="icon">📋</span>
+            <h3>Historial de Eventos</h3>
+        </div>
+        <div class="section-content">
+            {% if eventos %}
+            <div class="timeline">
+                {% for evento in eventos %}
+                <div class="timeline-item">
+                    <div class="date">{{ evento.fecha_hora|date:"d/m/Y H:i" }}</div>
+                    <div class="event">{{ evento.get_tipo_evento_display }}</div>
+                    <div class="location">{{ evento.ubicacion_puerto|default:"Terminal" }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #64748b; text-align: center;">No hay eventos registrados</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+        <p>Documento generado el {{ fecha_generacion|date:"d/m/Y" }} a las {{ fecha_generacion|date:"H:i" }}</p>
+        <p>Este documento es solo de consulta. Para información oficial, contacte a su transitario.</p>
+        <p style="margin-top: 8px;">
+            <a href="#">www.sigep.com</a> | Sistema de Gestión Portuaria
+        </p>
+    </div>
+</body>
+</html>
