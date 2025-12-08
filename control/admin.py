@@ -84,7 +84,6 @@ class TransitarioAdmin(admin.ModelAdmin):
         "estado_operacion",
         "tipo_servicio",
         "especialidad",
-        "es_activo",
         "pais",
     ]
     search_fields = [
@@ -101,13 +100,14 @@ class TransitarioAdmin(admin.ModelAdmin):
             "Información de la Empresa",
             {
                 "fields": (
+                    "identificador_tributario",
                     "razon_social",
                     "nombre_comercial",
-                    "identificador_tributario",
                     "codigo_scac",
                     "tipo_servicio",
                     "especialidad",
-                )
+                ),
+                "description": "Ingrese el RUC y presione 'Consultar' para autocompletar los datos desde SUNAT",
             },
         ),
         ("Ubicación", {"fields": ("pais", "ciudad", "direccion")}),
@@ -134,11 +134,10 @@ class TransitarioAdmin(admin.ModelAdmin):
                     "zona_cobertura",
                     "limite_credito",
                     "calificacion",
-                    "es_activo",
                 )
             },
         ),
-        ("Observaciones", {"fields": ("observaciones",), "classes": ("collapse",)}),
+        ("Observaciones", {"fields": ("observaciones",)}),
         (
             "Auditoría",
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},

@@ -199,6 +199,9 @@ class SunatClient:
             - provincia
             - distrito
             - tipo_contribuyente
+            - es_agente_retencion
+            - es_buen_contribuyente
+            - ubigeo
         """
         if "error" in data:
             return data
@@ -223,7 +226,11 @@ class SunatClient:
             "distrito": data.get("distrito") or "",
             "tipo_contribuyente": data.get("tipoContribuyente")
             or data.get("tipo_contribuyente")
+            or data.get("tipo")
             or "",
+            "es_agente_retencion": data.get("es_agente_retencion", False),
+            "es_buen_contribuyente": data.get("es_buen_contribuyente", False),
+            "ubigeo": data.get("ubigeo") or "",
             "_modo": data.get("_modo"),
         }
 

@@ -249,7 +249,10 @@ class Transitario(models.Model):
         help_text="Standard Carrier Alpha Code",
     )
     tipo_servicio = models.CharField(
-        max_length=20, choices=TIPO_SERVICIO_CHOICES, verbose_name="Tipo de Servicio"
+        max_length=20,
+        choices=TIPO_SERVICIO_CHOICES,
+        verbose_name="Tipo de Servicio",
+        help_text="NVOCC: Operador sin buque | FFWD: Agente de carga | TRUCKING: Transporte terrestre | INTEGRAL: Ofrece todos los servicios anteriores",
     )
     pais = models.CharField(max_length=60, verbose_name="País")
     ciudad = models.CharField(max_length=80, verbose_name="Ciudad")
@@ -278,14 +281,21 @@ class Transitario(models.Model):
         max_length=20, choices=ESPECIALIDAD_CHOICES, verbose_name="Especialidad"
     )
     licencia_operador = models.CharField(
-        max_length=50, blank=True, verbose_name="Licencia de Operador"
+        max_length=50,
+        blank=True,
+        verbose_name="Licencia de Operador",
+        help_text="Ej: MTC-2024-00123",
     )
     fecha_vencimiento_licencia = models.DateField(
         null=True, blank=True, verbose_name="Fecha de Vencimiento de Licencia"
     )
     zona_cobertura = models.TextField(blank=True, verbose_name="Zona de Cobertura")
     limite_credito = models.DecimalField(
-        max_digits=12, decimal_places=2, default=0, verbose_name="Límite de Crédito"
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        verbose_name="Límite de Crédito ($)",
+        help_text="Monto máximo de crédito en dólares americanos",
     )
     calificacion = models.IntegerField(
         default=5, verbose_name="Calificación", help_text="Calificación de 1 a 5"
