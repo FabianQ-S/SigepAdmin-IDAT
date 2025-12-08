@@ -1,3 +1,4 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/FabianQ-S/SigepAdmin-IDAT)
 # 🚢 SigepAdmin - Sistema de Gestión Portuaria
 
 Sistema de administración portuaria desarrollado con Django para la gestión de buques, arribos y aprobaciones aduaneras.
@@ -36,6 +37,12 @@ Este proyecto demuestra el uso, análisis e implementación de servicios web den
 - **Librerías adicionales**:
   - django-cleanup 9.0.0 (Limpieza automática de archivos)
   - pytz 2025.2 (Manejo de zonas horarias)
+  - django-tailwind 4.4.1 (Integración de Tailwind CSS)
+  - django-htmx 1.26.0 (Integración HTMX)
+  - weasyprint 66.0 (Generación de PDF)
+  - pillow 12.0.0 (Procesamiento de imágenes)
+  - arrow 1.4.0 (Manejo de fechas)
+  - python-decouple 3.8 (Gestión de variables de entorno)
 
 ---
 
