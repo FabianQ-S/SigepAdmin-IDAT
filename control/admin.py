@@ -145,6 +145,9 @@ class TransitarioAdmin(admin.ModelAdmin):
         ),
     )
 
+    class Media:
+        js = ("js/admin_sunat_ruc.js",)
+
     def total_contenedores(self, obj):
         count = obj.contenedores.count()
         return format_html("<strong>{}</strong> contenedores", count)

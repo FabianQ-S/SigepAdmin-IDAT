@@ -6,13 +6,16 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import ValidationError
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.views.decorators.http import require_GET
 
 from .models import Arribo, Contenedor, Queja, QuejaContenedor, validate_iso_6346
+from .sunat_client import sunat_client
 
 logger = logging.getLogger(__name__)
 
@@ -431,3 +434,30 @@ def pdf_cliente_contenedor(request, codigo_iso):
 
     filename = f"seguimiento_{codigo_iso}_{timezone.now().strftime('%Y%m%d')}.pdf"
     return _generate_pdf_response(html_content, filename)
+
+
+# =============================================
+# API CONSULTA SUNAT (RUC)
+# =============================================
+
+
+@staff_member_required
+@require_GET
+def consultar_ruc_sunat(request, ruc):
+    """
+    API interna para consultar RUC en SUNAT.
+    Solo accesible para usuarios staff (administradores).
+
+    Args:
+        ruc: Número de RUC (11 dígitos)
+
+    Returns:
+        JsonResponse con los datos normalizados del contribuyente
+    """
+    # Consultar SUNAT
+    datos_raw = sunat_client.consultar(ruc)
+
+    # Normalizar datos
+    datos = sunat_client.normalizar_datos(datos_raw)
+
+    return JsonResponse(datos)

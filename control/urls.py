@@ -37,4 +37,10 @@ urlpatterns = [
         views.pdf_cliente_contenedor,
         name="pdf_cliente_contenedor",
     ),
+    # API - Consulta SUNAT (solo staff)
+    path(
+        "api/sunat/ruc/<str:ruc>/",
+        views.consultar_ruc_sunat,
+        name="consultar_ruc_sunat",
+    ),
 ]

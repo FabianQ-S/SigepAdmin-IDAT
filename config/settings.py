@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -44,7 +45,6 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # AppInstaladas
     "control.apps.ControlConfig",
-
     # Explicito al final para eliminar archivos antiguos
     "django_cleanup.apps.CleanupConfig",
 ]
@@ -142,3 +142,23 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 TAILWIND_APP_NAME = "theme"
+
+
+# ============================================
+# CONFIGURACIÓN DE API SUNAT
+# ============================================
+# Para usar una API real de SUNAT, configura tu token aquí:
+# Opciones de proveedores:
+#   1. apis.net.pe - Regístrate en https://apis.net.pe/
+#   2. apiperu.dev - Regístrate en https://apiperu.dev/
+#   3. decolecta - Regístrate en https://decolecta.com/
+#
+# Puedes configurar como variables de entorno:
+#   export SUNAT_API_TOKEN="tu-token-aqui"
+#   export SUNAT_API_PROVIDER="apis.net.pe"
+# ============================================
+
+SUNAT_API_TOKEN = os.environ.get(
+    "SUNAT_API_TOKEN", "sk_12196.F7IvWizpCvtOaPm8ZFEFWGFcfnL4dizL"
+)
+SUNAT_API_PROVIDER = os.environ.get("SUNAT_API_PROVIDER", "decolecta")
