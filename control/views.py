@@ -14,6 +14,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_GET
 
+from .imo_client import imo_client
 from .models import Arribo, Contenedor, Queja, QuejaContenedor, validate_iso_6346
 from .sunat_client import sunat_client
 
@@ -459,5 +460,29 @@ def consultar_ruc_sunat(request, ruc):
 
     # Normalizar datos
     datos = sunat_client.normalizar_datos(datos_raw)
+
+    return JsonResponse(datos)
+
+
+# =============================================
+# API CONSULTA IMO (BUQUES)
+# =============================================
+
+
+@staff_member_required
+@require_GET
+def consultar_imo_buque(request, imo):
+    """
+    API interna para consultar información de buques por IMO.
+    Solo accesible para usuarios staff (administradores).
+
+    Args:
+        imo: Número IMO del buque (7 dígitos)
+
+    Returns:
+        JsonResponse con los datos normalizados del buque
+    """
+    # Consultar API de IMO
+    datos = imo_client.consultar_imo(imo)
 
     return JsonResponse(datos)

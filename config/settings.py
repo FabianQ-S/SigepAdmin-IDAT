@@ -162,3 +162,14 @@ SUNAT_API_TOKEN = os.environ.get(
     "SUNAT_API_TOKEN", "sk_12196.F7IvWizpCvtOaPm8ZFEFWGFcfnL4dizL"
 )
 SUNAT_API_PROVIDER = os.environ.get("SUNAT_API_PROVIDER", "decolecta")
+
+# ============================================
+# SHIP IMO CONFIGURATION
+# ============================================
+# La consulta de buques por IMO utiliza scraping de VesselFinder
+# directamente desde Django, sin necesidad de servidor externo.
+# Los datos de demostración están disponibles para:
+#   - 9839133 (MSC GULSUN)
+#   - 9778791 (EVER GIVEN)
+#   - 9461867 (MAERSK MC-KINNEY MOLLER)
+# ============================================

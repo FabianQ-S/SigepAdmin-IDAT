@@ -33,8 +33,15 @@ class BuqueAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (
-            "Información Básica",
-            {"fields": ("nombre", "imo_number", "pabellon_bandera", "naviera")},
+            "Identificación IMO",
+            {
+                "fields": ("imo_number", "nombre", "pabellon_bandera", "callsign"),
+                "description": "Ingrese el número IMO y presione 'Consultar' para autocompletar los datos del buque",
+            },
+        ),
+        (
+            "Naviera",
+            {"fields": ("naviera",)},
         ),
         (
             "Especificaciones Técnicas",
@@ -47,12 +54,15 @@ class BuqueAdmin(admin.ModelAdmin):
                 )
             },
         ),
-        ("Identificación", {"fields": ("puerto_registro", "callsign")}),
+        ("Puerto de Registro", {"fields": ("puerto_registro",)}),
         (
             "Auditoría",
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+    class Media:
+        js = ("js/admin_imo_buque.js",)
 
     def total_arribos(self, obj):
         count = obj.arribos.count()

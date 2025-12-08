@@ -43,4 +43,10 @@ urlpatterns = [
         views.consultar_ruc_sunat,
         name="consultar_ruc_sunat",
     ),
+    # API - Consulta IMO Buques (solo staff)
+    path(
+        "api/imo/ship/<str:imo>/",
+        views.consultar_imo_buque,
+        name="consultar_imo_buque",
+    ),
 ]
