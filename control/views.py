@@ -529,3 +529,43 @@ def obtener_datos_arribo(request, arribo_id):
         return JsonResponse(
             {"success": False, "error": "Arribo no encontrado"}, status=404
         )
+
+
+def api_contenedor_data(request, contenedor_id):
+    """
+    API interna para obtener datos de un contenedor.
+    Usado para auto-llenar el transitario en el formulario de pago.
+
+    Args:
+        contenedor_id: ID del contenedor
+
+    Returns:
+        JsonResponse con datos del contenedor incluyendo transitario
+    """
+    try:
+        contenedor = Contenedor.objects.select_related("transitario").get(
+            pk=contenedor_id
+        )
+
+        datos = {
+            "success": True,
+            "contenedor": {
+                "id": contenedor.id,
+                "codigo_iso": contenedor.codigo_iso,
+                "direccion": contenedor.direccion,
+            },
+            "transitario": {
+                "id": contenedor.transitario.id,
+                "nombre": contenedor.transitario.razon_social,
+                "nombre_comercial": contenedor.transitario.nombre_comercial or "",
+            }
+            if contenedor.transitario
+            else None,
+        }
+
+        return JsonResponse(datos)
+
+    except Contenedor.DoesNotExist:
+        return JsonResponse(
+            {"success": False, "error": "Contenedor no encontrado"}, status=404
+        )

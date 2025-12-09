@@ -36,6 +36,84 @@ class ArriboAdminForm(forms.ModelForm):
             self.fields["contenedores_carga"].required = False
 
 
+class AprobacionPagoTransitarioForm(forms.ModelForm):
+    """Formulario para pago transitario con auto-completado de transitario desde contenedor"""
+
+    class Meta:
+        model = AprobacionPagoTransitario
+        fields = "__all__"
+        widgets = {
+            # Transitario como campo hidden - se auto-completa desde JS
+            "transitario": forms.HiddenInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Solo mostrar contenedores que NO tienen pago transitario registrado
+        contenedores_con_pago = AprobacionPagoTransitario.objects.values_list(
+            "contenedor_id", flat=True
+        )
+        self.fields["contenedor"].queryset = Contenedor.objects.exclude(
+            id__in=contenedores_con_pago
+        ).select_related("transitario")
+
+        # Si es edición, incluir el contenedor actual
+        if self.instance.pk:
+            self.fields["contenedor"].queryset = Contenedor.objects.filter(
+                id=self.instance.contenedor_id
+            )
+
+        # Transitario no es obligatorio en el form (se auto-asigna en save)
+        if "transitario" in self.fields:
+            self.fields["transitario"].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        contenedor = cleaned_data.get("contenedor")
+
+        # Auto-asignar transitario desde el contenedor
+        if contenedor and contenedor.transitario:
+            cleaned_data["transitario"] = contenedor.transitario
+        elif contenedor and not contenedor.transitario:
+            raise forms.ValidationError(
+                "El contenedor seleccionado no tiene un transitario asignado."
+            )
+
+        return cleaned_data
+
+
+class AprobacionAduaneraForm(forms.ModelForm):
+    """Formulario para aprobación aduanera con validaciones y filtro de contenedores"""
+
+    class Meta:
+        model = AprobacionAduanera
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Solo mostrar contenedores que NO tienen aprobación aduanera registrada
+        contenedores_con_aprobacion = AprobacionAduanera.objects.values_list(
+            "contenedor_id", flat=True
+        )
+        self.fields["contenedor"].queryset = Contenedor.objects.exclude(
+            id__in=contenedores_con_aprobacion
+        ).select_related("arribo", "transitario")
+
+        # Si es edición, incluir el contenedor actual
+        if self.instance.pk:
+            self.fields["contenedor"].queryset = Contenedor.objects.filter(
+                id=self.instance.contenedor_id
+            )
+
+        # Agregar placeholder al número de despacho
+        self.fields["numero_despacho"].widget.attrs.update(
+            {
+                "placeholder": "Ej: 118-2025-10-012345",
+                "pattern": r"\d{3}-\d{4}-\d{2}-\d{6}(-\d{2})?",
+            }
+        )
+
+
 # ====== BUQUE ADMIN ======
 @admin.register(Buque)
 class BuqueAdmin(admin.ModelAdmin):
@@ -856,9 +934,10 @@ class ContenedorAdmin(admin.ModelAdmin):
 # ====== APROBACIÓN ADUANERA ADMIN ======
 @admin.register(AprobacionAduanera)
 class AprobacionAduaneraAdmin(admin.ModelAdmin):
+    form = AprobacionAduaneraForm
     list_display = [
         "contenedor",
-        "aprobado",
+        "estado_coloreado",
         "numero_despacho",
         "fecha_revision",
         "fecha_levante",
@@ -873,15 +952,28 @@ class AprobacionAduaneraAdmin(admin.ModelAdmin):
     fieldsets = (
         ("Contenedor", {"fields": ("contenedor",)}),
         (
-            "Documentación",
-            {"fields": ("numero_despacho", "fecha_revision", "observaciones")},
+            "Documentación DAM/DUA",
+            {
+                "fields": ("numero_despacho", "fecha_revision"),
+                "description": "Número de despacho formato SUNAT: AAA-AAAA-RR-NNNNNN (ej: 118-2025-10-012345)",
+            },
         ),
-        ("Resultado", {"fields": ("aprobado", "fecha_levante"), "classes": ("wide",)}),
+        (
+            "Resultado",
+            {
+                "fields": ("aprobado", "fecha_levante", "observaciones"),
+                "classes": ("wide",),
+                "description": (
+                    "⚠️ Si está APROBADO: Fecha de Levante y Documento son obligatorios. "
+                    "Si NO está aprobado: Las Observaciones son obligatorias (motivo del rechazo)."
+                ),
+            },
+        ),
         (
             "Documento Adjunto",
             {
                 "fields": ("documento_adjunto", "preview_documento"),
-                "description": "Sube el documento aduanero en formato PDF, JPG o PNG (máximo 5MB)",
+                "description": "Documento legal de aprobación aduanera (PDF, JPG o PNG, máx. 5MB). Obligatorio si está aprobado.",
             },
         ),
         (
@@ -889,6 +981,23 @@ class AprobacionAduaneraAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+    class Media:
+        js = ("js/admin_aprobacion_aduanera.js",)
+
+    def estado_coloreado(self, obj):
+        """Muestra el estado con color"""
+        if obj.aprobado:
+            return format_html(
+                '<span style="color: white; background-color: #28a745; padding: 3px 8px; border-radius: 3px; font-weight: bold;">'
+                "✓ Aprobado</span>"
+            )
+        return format_html(
+            '<span style="color: white; background-color: #dc3545; padding: 3px 8px; border-radius: 3px; font-weight: bold;">'
+            "✗ Pendiente</span>"
+        )
+
+    estado_coloreado.short_description = "Estado"
 
     def tiene_documento(self, obj):
         """Indica si tiene documento adjunto"""
@@ -1049,27 +1158,44 @@ class AprobacionFinancieraAdmin(admin.ModelAdmin):
 # ====== APROBACIÓN PAGO TRANSITARIO ADMIN ======
 @admin.register(AprobacionPagoTransitario)
 class AprobacionPagoTransitarioAdmin(admin.ModelAdmin):
+    form = AprobacionPagoTransitarioForm
     list_display = [
         "contenedor",
         "transitario",
-        "pago_realizado",
         "monto_pagado",
         "fecha_pago",
         "tiene_documento",
     ]
-    list_filter = ["pago_realizado", "transitario", "fecha_pago"]
+    list_filter = ["transitario", "fecha_pago"]
     search_fields = [
         "contenedor__codigo_iso",
         "transitario__razon_social",
         "transitario__nombre_comercial",
     ]
-    readonly_fields = ["created_at", "updated_at", "preview_documento"]
+    readonly_fields = [
+        "created_at",
+        "updated_at",
+        "preview_documento",
+        "transitario_display",
+    ]
     date_hierarchy = "fecha_pago"
-    autocomplete_fields = ["contenedor", "transitario"]
+    autocomplete_fields = ["contenedor"]
 
     fieldsets = (
-        ("Contenedor y Transitario", {"fields": ("contenedor", "transitario")}),
-        ("Pago", {"fields": ("monto_pagado", "fecha_pago", "pago_realizado")}),
+        (
+            "Contenedor y Transitario",
+            {
+                "fields": ("contenedor", "transitario_display"),
+                "description": "Seleccione el contenedor. El transitario se muestra automáticamente.",
+            },
+        ),
+        (
+            "Pago",
+            {
+                "fields": ("monto_pagado", "fecha_pago"),
+                "description": "Ingrese los datos del pago realizado.",
+            },
+        ),
         (
             "Comprobante de Pago",
             {
@@ -1083,6 +1209,36 @@ class AprobacionPagoTransitarioAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+    class Media:
+        js = ("js/admin_pago_transitario.js",)
+
+    def transitario_display(self, obj):
+        """Muestra el transitario del contenedor (solo lectura)"""
+        if obj and obj.pk and obj.transitario:
+            return format_html(
+                '<span id="transitario-display" style="font-weight: bold; color: #4CAF50;">🏢 {}</span>',
+                obj.transitario.razon_social,
+            )
+        elif obj and obj.contenedor_id:
+            # Si tiene contenedor pero no se ha guardado aún
+            try:
+                contenedor = Contenedor.objects.select_related("transitario").get(
+                    pk=obj.contenedor_id
+                )
+                if contenedor.transitario:
+                    return format_html(
+                        '<span id="transitario-display" style="font-weight: bold; color: #4CAF50;">🏢 {}</span>',
+                        contenedor.transitario.razon_social,
+                    )
+            except Contenedor.DoesNotExist:
+                pass
+        return format_html(
+            '<span id="transitario-display" style="color: #666; font-style: italic;">'
+            "📋 Se seleccionará automáticamente el transitario del contenedor</span>"
+        )
+
+    transitario_display.short_description = "Transitario"
 
     def tiene_documento(self, obj):
         """Indica si tiene documento adjunto"""
@@ -1136,6 +1292,14 @@ class AprobacionPagoTransitarioAdmin(admin.ModelAdmin):
         )
 
     preview_documento.short_description = "Vista Previa del Comprobante"
+
+    def save_model(self, request, obj, form, change):
+        """Auto-completar transitario desde el contenedor seleccionado"""
+        if obj.contenedor and obj.contenedor.transitario:
+            obj.transitario = obj.contenedor.transitario
+        # Asegurar que pago_realizado siempre sea True
+        obj.pago_realizado = True
+        super().save_model(request, obj, form, change)
 
 
 # ====== INLINE PARA CONTENEDORES EN QUEJA ======

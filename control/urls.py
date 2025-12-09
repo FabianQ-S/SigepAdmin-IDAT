@@ -55,4 +55,10 @@ urlpatterns = [
         views.obtener_datos_arribo,
         name="obtener_datos_arribo",
     ),
+    # API - Datos de Contenedor para auto-llenado de transitario en pago (solo staff)
+    path(
+        "api/contenedor/<int:contenedor_id>/",
+        views.api_contenedor_data,
+        name="api_contenedor_data",
+    ),
 ]

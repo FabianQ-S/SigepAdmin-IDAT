@@ -1038,11 +1038,22 @@ class AprobacionAduanera(models.Model):
         related_name="aprobacion_aduanera",
         verbose_name="Contenedor",
     )
-    numero_despacho = models.CharField(max_length=30, verbose_name="Número de Despacho")
-    fecha_revision = models.DateTimeField(
-        null=True, blank=True, verbose_name="Fecha de Revisión"
+    numero_despacho = models.CharField(
+        max_length=30,
+        verbose_name="Número de Despacho (DAM/DUA)",
+        help_text="Formato: AAA-AAAA-RR-NNNNNN o AAA-AAAA-RR-NNNNNN-SS. Ejemplo: 118-2025-10-012345",
     )
-    observaciones = models.TextField(blank=True, verbose_name="Observaciones")
+    fecha_revision = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Revisión",
+        help_text="Fecha en que se realizó la revisión aduanera. No puede ser futura.",
+    )
+    observaciones = models.TextField(
+        blank=True,
+        verbose_name="Observaciones",
+        help_text="Obligatorio si NO está aprobado (indique el motivo del rechazo)",
+    )
     aprobado = models.BooleanField(
         default=False,
         verbose_name="Aprobado",
@@ -1052,7 +1063,7 @@ class AprobacionAduanera(models.Model):
         null=True,
         blank=True,
         verbose_name="Fecha de Levante",
-        help_text="Fecha en que se autoriza el retiro del contenedor",
+        help_text="Fecha en que se autoriza el retiro del contenedor. Obligatorio si está aprobado.",
     )
     documento_adjunto = models.FileField(
         upload_to="documentos/aduaneros/%Y/%m/",
@@ -1063,7 +1074,7 @@ class AprobacionAduanera(models.Model):
         null=True,
         blank=True,
         verbose_name="Documento Adjunto",
-        help_text="Sube el documento aduanero en formato PDF, JPG o PNG (máx. 5MB)",
+        help_text="Documento legal de aprobación. Obligatorio si está aprobado.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1074,12 +1085,102 @@ class AprobacionAduanera(models.Model):
         ordering = ["-created_at"]
 
     def clean(self):
-        if self.aprobado and not self.fecha_levante:
-            raise ValidationError(
-                {
-                    "fecha_levante": "Si está aprobado, debe especificar la fecha de levante"
-                }
-            )
+        import re
+
+        from django.utils import timezone
+
+        errors = {}
+
+        # === Validación del Número de Despacho DAM/DUA ===
+        if self.numero_despacho:
+            # Limpiar espacios al inicio y final
+            numero_limpio = self.numero_despacho.strip()
+
+            # Verificar que no haya espacios internos
+            if " " in numero_limpio:
+                errors["numero_despacho"] = (
+                    "El número de despacho no puede contener espacios. "
+                    "Formato correcto: 118-2025-10-012345"
+                )
+            else:
+                # Patrón: AAA-AAAA-RR-NNNNNN o AAA-AAAA-RR-NNNNNN-SS
+                patron_dam = r"^\d{3}-\d{4}-\d{2}-\d{6}(-\d{2})?$"
+                if not re.match(patron_dam, numero_limpio):
+                    errors["numero_despacho"] = (
+                        "Formato inválido. Debe ser AAA-AAAA-RR-NNNNNN o AAA-AAAA-RR-NNNNNN-SS. "
+                        "Ejemplo: 118-2025-10-012345 o 118-2025-10-012345-00"
+                    )
+                else:
+                    # Guardar el número limpio
+                    self.numero_despacho = numero_limpio
+
+        # === Validación de Fecha de Revisión (obligatoria) ===
+        if not self.fecha_revision:
+            errors["fecha_revision"] = "La fecha de revisión es obligatoria"
+        else:
+            now = timezone.now()
+            if self.fecha_revision > now:
+                errors["fecha_revision"] = "La fecha de revisión no puede ser futura"
+
+        # === Validaciones condicionales según Aprobado ===
+        if self.aprobado:
+            # Escenario A: Aprobado - requiere fecha_levante y documento
+            if not self.fecha_levante:
+                errors["fecha_levante"] = (
+                    "Si está aprobado, debe especificar la fecha de levante"
+                )
+            if not self.documento_adjunto:
+                errors["documento_adjunto"] = (
+                    "Si está aprobado, debe adjuntar el documento legal de aprobación"
+                )
+        else:
+            # Escenario B: No aprobado - requiere observaciones, limpia fecha_levante
+            if not self.observaciones:
+                errors["observaciones"] = (
+                    "Si no está aprobado, debe especificar el motivo en las observaciones"
+                )
+            # Limpiar fecha de levante si no está aprobado
+            self.fecha_levante = None
+
+        # === Validaciones de Fecha de Levante ===
+        if self.fecha_levante:
+            now = timezone.now()
+
+            # No puede ser futura
+            if self.fecha_levante > now:
+                errors["fecha_levante"] = "La fecha de levante no puede ser futura"
+
+            # No puede ser anterior a la fecha de revisión
+            if self.fecha_revision and self.fecha_levante < self.fecha_revision:
+                errors["fecha_levante"] = (
+                    "La fecha de levante no puede ser anterior a la fecha de revisión"
+                )
+
+            # No puede ser anterior a la fecha de llegada del buque (ETA o arribo real)
+            if self.contenedor_id:
+                try:
+                    contenedor = Contenedor.objects.select_related("arribo__buque").get(
+                        pk=self.contenedor_id
+                    )
+                    if contenedor.arribo:
+                        # Usar fecha_arribo_real si existe, sino fecha_eta
+                        fecha_llegada_buque = (
+                            contenedor.arribo.fecha_arribo_real
+                            or contenedor.arribo.fecha_eta
+                        )
+                        if (
+                            fecha_llegada_buque
+                            and self.fecha_levante < fecha_llegada_buque
+                        ):
+                            errors["fecha_levante"] = (
+                                f"La fecha de levante no puede ser anterior a la "
+                                f"llegada del buque ({fecha_llegada_buque.strftime('%d/%m/%Y %H:%M')})"
+                            )
+                except Contenedor.DoesNotExist:
+                    pass
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         estado = "Aprobado" if self.aprobado else "Pendiente"
@@ -1176,9 +1277,12 @@ class AprobacionPagoTransitario(models.Model):
         on_delete=models.PROTECT,
         related_name="pagos",
         verbose_name="Transitario",
-        help_text="Transitario que realiza el pago",
+        help_text="Se auto-completa desde el contenedor seleccionado",
     )
-    pago_realizado = models.BooleanField(default=False, verbose_name="Pago Realizado")
+    # Siempre True - si se registra un pago, es porque se realizó
+    pago_realizado = models.BooleanField(
+        default=True, verbose_name="Pago Realizado", editable=False
+    )
     monto_pagado = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -1208,22 +1312,46 @@ class AprobacionPagoTransitario(models.Model):
         ordering = ["-created_at"]
 
     def clean(self):
-        if self.pago_realizado and not self.fecha_pago:
-            raise ValidationError(
-                {
-                    "fecha_pago": "Si el pago está realizado, debe especificar la fecha de pago"
-                }
-            )
-        if self.pago_realizado and not self.monto_pagado:
-            raise ValidationError(
-                {
-                    "monto_pagado": "Si el pago está realizado, debe especificar el monto pagado"
-                }
-            )
+        # Auto-asignar transitario desde el contenedor si no está asignado
+        if self.contenedor_id and not self.transitario_id:
+            try:
+                contenedor = Contenedor.objects.select_related("transitario").get(
+                    pk=self.contenedor_id
+                )
+                if contenedor.transitario_id:
+                    self.transitario_id = contenedor.transitario_id
+            except Contenedor.DoesNotExist:
+                pass
+
+        # Validar que el transitario coincida con el del contenedor (usando _id para evitar query)
+        if self.contenedor_id and self.transitario_id:
+            try:
+                contenedor = Contenedor.objects.get(pk=self.contenedor_id)
+                if (
+                    contenedor.transitario_id
+                    and contenedor.transitario_id != self.transitario_id
+                ):
+                    raise ValidationError(
+                        {
+                            "transitario": "El transitario debe ser el asignado al contenedor"
+                        }
+                    )
+            except Contenedor.DoesNotExist:
+                pass
+
+        # Validaciones de pago (siempre requeridos ya que siempre es pago realizado)
+        if not self.fecha_pago:
+            raise ValidationError({"fecha_pago": "Debe especificar la fecha de pago"})
+        if not self.monto_pagado:
+            raise ValidationError({"monto_pagado": "Debe especificar el monto pagado"})
 
     def __str__(self):
         estado = "Pagado" if self.pago_realizado else "Pendiente"
-        return f"{self.contenedor.codigo_iso} - {self.transitario} - {estado}"
+        codigo = self.contenedor.codigo_iso if self.contenedor_id else "Sin contenedor"
+        transitario_nombre = (
+            self.transitario.razon_social if self.transitario_id else "Sin transitario"
+        )
+        return f"{codigo} - {transitario_nombre} - {estado}"
 
 
 # ====== CUN07: QUEJAS ======
