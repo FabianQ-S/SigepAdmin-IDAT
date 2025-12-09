@@ -1,0 +1,85 @@
+/**
+ * Estilos para Admin Aprobación Financiera
+ */
+
+/* Checkboxes de servicios en grid */
+.field-servicios_facturados ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+}
+
+.field-servicios_facturados li {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.field-servicios_facturados li:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.field-servicios_facturados li label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin: 0;
+  width: 100%;
+}
+
+.field-servicios_facturados input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #007bff;
+}
+
+.field-servicios_facturados input[type="checkbox"]:checked + label,
+.field-servicios_facturados li:has(input:checked) {
+  background: #cce5ff;
+  border-color: #007bff;
+}
+
+/* Estado financiero select con iconos */
+#id_estado_financiero {
+  font-size: 14px;
+  padding: 8px 12px;
+}
+
+#id_estado_financiero option[value="PENDIENTE"] {
+  background: #fff3cd;
+}
+
+#id_estado_financiero option[value="PAGADA"] {
+  background: #d4edda;
+}
+
+#id_estado_financiero option[value="CREDITO"] {
+  background: #cce5ff;
+}
+
+#id_estado_financiero option[value="ANULADA"] {
+  background: #f8d7da;
+}
+
+/* Número de factura uppercase */
+#id_numero_factura {
+  text-transform: uppercase;
+  font-family: monospace;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+/* Monto USD */
+#id_monto_usd {
+  font-family: monospace;
+  font-size: 14px;
+}
