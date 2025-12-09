@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin, messages
 from django.urls import reverse
 from django.utils.html import format_html
@@ -14,6 +15,25 @@ from .models import (
     QuejaContenedor,
     Transitario,
 )
+
+
+# ====== FORMULARIOS PERSONALIZADOS ======
+class ArriboAdminForm(forms.ModelForm):
+    """Formulario personalizado para Arribo que hace los campos de contenedores no obligatorios"""
+
+    class Meta:
+        model = Arribo
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Hacer los campos de contenedores no obligatorios en el formulario
+        # La validación real se hace en el modelo según tipo_operacion
+        # Solo si los campos existen (no están en readonly_fields)
+        if "contenedores_descarga" in self.fields:
+            self.fields["contenedores_descarga"].required = False
+        if "contenedores_carga" in self.fields:
+            self.fields["contenedores_carga"].required = False
 
 
 # ====== BUQUE ADMIN ======
@@ -105,6 +125,16 @@ class TransitarioAdmin(admin.ModelAdmin):
     ]
     readonly_fields = ["created_at", "updated_at"]
 
+    # Campos que se bloquean después de crear (datos de SUNAT que no deben cambiar)
+    _campos_bloqueados_en_edicion = [
+        "identificador_tributario",
+        "razon_social",
+        "nombre_comercial",
+        "pais",
+        "ciudad",
+        "direccion",
+    ]
+
     fieldsets = (
         (
             "Información de la Empresa",
@@ -120,7 +150,10 @@ class TransitarioAdmin(admin.ModelAdmin):
                 "description": "Ingrese el RUC y presione 'Consultar' para autocompletar los datos desde SUNAT",
             },
         ),
-        ("Ubicación", {"fields": ("pais", "ciudad", "direccion")}),
+        (
+            "Ubicación (auto-completado desde SUNAT)",
+            {"fields": ("pais", "ciudad", "direccion")},
+        ),
         (
             "Contacto",
             {
@@ -157,6 +190,13 @@ class TransitarioAdmin(admin.ModelAdmin):
     class Media:
         js = ("js/admin_sunat_ruc.js",)
 
+    def get_readonly_fields(self, request, obj=None):
+        """Bloquear campos de identificación y ubicación después de crear"""
+        readonly = list(self.readonly_fields)
+        if obj:  # Si es edición, bloquear datos de SUNAT
+            readonly.extend(self._campos_bloqueados_en_edicion)
+        return readonly
+
     def total_contenedores(self, obj):
         count = obj.contenedores.count()
         return format_html("<strong>{}</strong> contenedores", count)
@@ -166,6 +206,14 @@ class TransitarioAdmin(admin.ModelAdmin):
 
 # ====== INLINE PARA CONTENEDORES EN ARRIBO ======
 class ContenedorInline(admin.TabularInline):
+    """
+    Inline de solo lectura para visualizar contenedores asociados a un Arribo.
+
+    Los contenedores se agregan/editan/eliminan mediante:
+    - Botón "+ Agregar Contenedor" que abre popup con formulario completo
+    - Botón ✏️ en columna "Acciones" para editar/eliminar contenedores existentes
+    """
+
     model = Contenedor
     extra = 0
     fields = [
@@ -176,9 +224,24 @@ class ContenedorInline(admin.TabularInline):
         "bl_referencia",
         "ubicacion_actual",
     ]
-    readonly_fields = []
-    can_delete = True
-    show_change_link = True
+    # Hacer todos los campos readonly - la edición se hace via botón de acciones
+    readonly_fields = [
+        "codigo_iso",
+        "direccion",
+        "tipo_tamaño",
+        "transitario",
+        "bl_referencia",
+        "ubicacion_actual",
+    ]
+    # No permitir agregar desde inline - se usa el popup
+    max_num = 0
+    # Deshabilitar eliminación desde inline - se hace desde la vista de detalle
+    can_delete = False
+    # DESHABILITADO: show_change_link genera un h3 con __str__ que no se puede ocultar fácilmente
+    # El botón de editar se agrega via JavaScript en la columna "Acciones"
+    show_change_link = False
+    verbose_name = "Contenedor registrado"
+    verbose_name_plural = "Contenedores registrados"
 
 
 # ====== INLINE PARA EVENTOS EN CONTENEDOR ======
@@ -207,6 +270,7 @@ class EventoContenedorInline(admin.TabularInline):
 # ====== ARRIBO ADMIN ======
 @admin.register(Arribo)
 class ArriboAdmin(admin.ModelAdmin):
+    form = ArriboAdminForm  # Usar formulario personalizado
     list_display = [
         "id",
         "buque",
@@ -224,6 +288,8 @@ class ArriboAdmin(admin.ModelAdmin):
     readonly_fields = ["created_at", "updated_at"]
     date_hierarchy = "fecha_eta"
     inlines = [ContenedorInline]
+    # Habilitar autocomplete con búsqueda para el campo Buque
+    autocomplete_fields = ["buque"]
 
     fieldsets = (
         (
@@ -247,6 +313,18 @@ class ArriboAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+    class Media:
+        js = ("js/admin_contenedor_popup.js", "js/admin_arribo.js")
+
+    def get_readonly_fields(self, request, obj=None):
+        """Hacer campos de capacidad declarada de solo lectura después de crear el Arribo"""
+        readonly = list(self.readonly_fields)
+        if obj:  # Si es edición (obj existe), bloquear capacidad declarada
+            readonly.extend(
+                ["contenedores_descarga", "contenedores_carga", "tipo_operacion"]
+            )
+        return readonly
 
     def descargar_manifiesto(self, obj):
         """Botón para descargar el Manifiesto de Arribo en PDF"""
@@ -306,6 +384,7 @@ class ContenedorAdmin(admin.ModelAdmin):
         "arribo",
         "direccion",
         "tipo_tamaño",
+        "sello_principal_badge",
         "carrier",
         "ruta_resumen",
         "ultimo_estado_badge",
@@ -330,29 +409,72 @@ class ContenedorAdmin(admin.ModelAdmin):
         "origen_puerto",
         "carrier",
     ]
-    readonly_fields = ["created_at", "updated_at", "ultimo_estado_badge"]
+    readonly_fields = [
+        "created_at",
+        "updated_at",
+        "ultimo_estado_badge",
+    ]
+    # Campos que serán readonly en edición (datos estructurales que no deben cambiar)
+    _campos_bloqueados_en_edicion = [
+        # Paso 1: Datos Fuente
+        "codigo_iso",
+        "arribo",
+        "tipo_tamaño",
+        "transitario",
+        # Paso 2: Datos Auto-completados
+        "bic_propietario",
+        "direccion",
+        "carrier",
+        "consignatario",
+        "tara_kg",
+    ]
     date_hierarchy = "created_at"
     autocomplete_fields = ["arribo", "transitario"]
     inlines = [EventoContenedorInline]
 
+    class Media:
+        js = ("js/admin_sellos_chips.js", "js/admin_contenedor_form.js")
+
+    def get_readonly_fields(self, request, obj=None):
+        """Bloquear campos estructurales después de crear el Contenedor"""
+        readonly = list(self.readonly_fields)
+        if obj:  # Si es edición, bloquear datos estructurales
+            readonly.extend(self._campos_bloqueados_en_edicion)
+        return readonly
+
     fieldsets = (
         (
-            "Información Básica",
+            "📋 Paso 1: Datos Fuente (presione ➡️ para auto-completar)",
             {
                 "fields": (
                     "codigo_iso",
-                    "bic_propietario",
                     "arribo",
-                    "direccion",
                     "tipo_tamaño",
                     "transitario",
-                    "carrier",
-                )
+                ),
+                "description": "Ingrese estos datos primero. Cada campo tiene un botón ➡️ azul que auto-completa los campos relacionados.",
+                "classes": ("wide",),
             },
         ),
-        ("Documentación", {"fields": ("bl_referencia", "numero_sello")}),
         (
-            "Origen",
+            "⚡ Paso 2: Datos Auto-completados",
+            {
+                "fields": (
+                    "bic_propietario",
+                    "direccion",
+                    "carrier",
+                    "consignatario",
+                    "tara_kg",
+                ),
+                "description": "Estos campos se llenan automáticamente.",
+            },
+        ),
+        (
+            "📄 Documentación",
+            {"fields": ("bl_referencia", "numero_sello")},
+        ),
+        (
+            "🌍 Origen",
             {
                 "fields": (
                     "origen_pais",
@@ -360,39 +482,41 @@ class ContenedorAdmin(admin.ModelAdmin):
                     "origen_puerto",
                     "remitente",
                 ),
-                "description": "Información del punto de origen del contenedor",
+                "description": "Presione ➡️ para auto-completar con datos del Puerto de Chancay.",
             },
         ),
         (
-            "Destino",
+            "📍 Destino",
             {
                 "fields": (
                     "destino_pais",
                     "destino_ciudad",
                     "destino_puerto",
-                    "consignatario",
                     "fecha_eta_destino",
                 ),
-                "description": "Información del punto de destino del contenedor",
+                "description": "Presione ➡️ para auto-completar con datos del Puerto de Chancay.",
             },
         ),
         (
-            "Contenido y Pesos",
+            "📦 Contenido y Pesos",
             {
                 "fields": (
                     "mercancia_declarada",
                     "mercancia_peligrosa",
                     "peso_bruto_kg",
-                    "tara_kg",
-                )
+                ),
+                "description": "Verá una referencia de la Tara arriba del campo Peso Bruto.",
             },
         ),
         (
-            "Ubicación y Fechas",
-            {"fields": ("ubicacion_actual", "fecha_retiro_transitario")},
+            "📍 Ubicación y Fechas",
+            {
+                "fields": ("ubicacion_actual", "fecha_retiro_transitario"),
+                "description": "Aparecerá ➡️ para sugerir ubicación según dirección.",
+            },
         ),
         (
-            "Auditoría",
+            "🕐 Auditoría",
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
@@ -452,6 +576,29 @@ class ContenedorAdmin(admin.ModelAdmin):
         return f"{origen} → {destino}"
 
     ruta_resumen.short_description = "Ruta"
+
+    def sello_principal_badge(self, obj):
+        """Muestra el sello principal con badge"""
+        sello = obj.get_sello_principal()
+        total = len(obj.get_sellos_lista())
+
+        if sello:
+            if total > 1:
+                return format_html(
+                    '<span style="background-color: #1e40af; color: white; padding: 3px 8px; '
+                    'border-radius: 4px; font-family: monospace; font-weight: bold;">'
+                    '🔒 {}</span> <span style="color: #6b7280; font-size: 11px;">+{} más</span>',
+                    sello,
+                    total - 1,
+                )
+            return format_html(
+                '<span style="background-color: #1e40af; color: white; padding: 3px 8px; '
+                'border-radius: 4px; font-family: monospace; font-weight: bold;">🔒 {}</span>',
+                sello,
+            )
+        return format_html('<span style="color: #dc2626;">⚠️ Sin sello</span>')
+
+    sello_principal_badge.short_description = "Sello Principal"
 
     def ultimo_estado_badge(self, obj):
         """Muestra el último evento/estado del contenedor"""
@@ -618,6 +765,92 @@ class ContenedorAdmin(admin.ModelAdmin):
                 )
 
     verificar_aprobaciones.short_description = "Verificar aprobaciones de contenedores"
+
+    def get_changeform_initial_data(self, request):
+        """Pre-llenar el campo arribo cuando viene desde el popup de Arribos"""
+        initial = super().get_changeform_initial_data(request)
+        arribo_id = request.GET.get("arribo")
+        if arribo_id:
+            initial["arribo"] = arribo_id
+        return initial
+
+    def response_add(self, request, obj, post_url_continue=None):
+        """Cerrar ventana popup si viene con _popup=1"""
+        from django.http import HttpResponse
+
+        # Si es un popup (tiene _popup en GET o POST), cerrar la ventana
+        is_popup = "_popup" in request.GET or "_popup" in request.POST
+        if is_popup:
+            return HttpResponse(
+                f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Contenedor guardado</title>
+                    <style>
+                        body {{
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            min-height: 100vh;
+                            margin: 0;
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        }}
+                        .container {{
+                            background: white;
+                            padding: 40px;
+                            border-radius: 12px;
+                            text-align: center;
+                            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                            max-width: 400px;
+                        }}
+                        h2 {{ color: #27ae60; margin: 0 0 15px 0; }}
+                        p {{ color: #666; margin: 0 0 20px 0; }}
+                        .code {{ 
+                            background: #f8f9fa; 
+                            padding: 8px 16px; 
+                            border-radius: 6px;
+                            font-family: monospace;
+                            font-size: 18px;
+                            font-weight: bold;
+                            color: #2c3e50;
+                        }}
+                        button {{
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            color: white;
+                            border: none;
+                            padding: 12px 30px;
+                            border-radius: 6px;
+                            font-size: 14px;
+                            cursor: pointer;
+                            margin-top: 20px;
+                        }}
+                        button:hover {{ opacity: 0.9; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div style="font-size: 50px; margin-bottom: 15px;">✅</div>
+                        <h2>Contenedor Guardado</h2>
+                        <p>Se ha registrado exitosamente:</p>
+                        <div class="code">{obj.codigo_iso}</div>
+                        <p style="margin-top: 15px; font-size: 13px; color: #999;">
+                            La ventana se cerrará automáticamente...
+                        </p>
+                        <button onclick="window.close()">Cerrar ventana</button>
+                    </div>
+                    <script>
+                        // Intentar cerrar automáticamente después de 1.5 segundos
+                        setTimeout(function() {{
+                            window.close();
+                        }}, 1500);
+                    </script>
+                </body>
+                </html>
+                """
+            )
+        return super().response_add(request, obj, post_url_continue)
 
 
 # ====== APROBACIÓN ADUANERA ADMIN ======

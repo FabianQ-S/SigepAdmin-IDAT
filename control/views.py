@@ -486,3 +486,46 @@ def consultar_imo_buque(request, imo):
     datos = imo_client.consultar_imo(imo)
 
     return JsonResponse(datos)
+
+
+@staff_member_required
+@require_GET
+def obtener_datos_arribo(request, arribo_id):
+    """
+    API interna para obtener datos de un arribo.
+    Usado para auto-llenar campos del formulario de contenedor.
+
+    Args:
+        arribo_id: ID del arribo
+
+    Returns:
+        JsonResponse con datos del arribo para auto-llenado
+    """
+    try:
+        arribo = Arribo.objects.select_related("buque").get(pk=arribo_id)
+
+        # Obtener transitario asociado si existe (del primer contenedor o de relación directa)
+        transitario_nombre = ""
+        if hasattr(arribo, "transitario") and arribo.transitario:
+            transitario_nombre = arribo.transitario.razon_social
+
+        datos = {
+            "success": True,
+            "arribo": {
+                "id": arribo.id,
+                "tipo_operacion": arribo.tipo_operacion,
+                "buque_nombre": arribo.buque.nombre,
+                "naviera": arribo.buque.naviera or arribo.buque.nombre,
+                "fecha_eta": arribo.fecha_eta.isoformat() if arribo.fecha_eta else None,
+                "fecha_etd": arribo.fecha_etd.isoformat() if arribo.fecha_etd else None,
+                "transitario_nombre": transitario_nombre,
+                "muelle": arribo.muelle_berth,
+            },
+        }
+
+        return JsonResponse(datos)
+
+    except Arribo.DoesNotExist:
+        return JsonResponse(
+            {"success": False, "error": "Arribo no encontrado"}, status=404
+        )

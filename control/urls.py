@@ -49,4 +49,10 @@ urlpatterns = [
         views.consultar_imo_buque,
         name="consultar_imo_buque",
     ),
+    # API - Datos de Arribo para auto-llenado de contenedor (solo staff)
+    path(
+        "api/arribo/<int:arribo_id>/",
+        views.obtener_datos_arribo,
+        name="obtener_datos_arribo",
+    ),
 ]

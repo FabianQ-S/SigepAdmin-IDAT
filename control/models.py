@@ -7,7 +7,153 @@ from django.db import models
 # from django.utils.translation import gettext_lazy as _
 
 
+# ====== CONSTANTES PARA TIPOS DE CONTENEDOR ======
+# Códigos ISO 6346 Tipo/Tamaño con tara aproximada en kg
+TIPOS_CONTENEDOR = {
+    # 20 pies (6m)
+    "22G1": {"nombre": "20' Dry Standard", "tara_kg": 2200, "capacidad_m3": 33},
+    "22G0": {
+        "nombre": "20' Dry Standard (ventilado)",
+        "tara_kg": 2300,
+        "capacidad_m3": 33,
+    },
+    "22R1": {"nombre": "20' Reefer", "tara_kg": 3100, "capacidad_m3": 28},
+    "22U1": {"nombre": "20' Open Top", "tara_kg": 2300, "capacidad_m3": 32},
+    "22P1": {"nombre": "20' Flat Rack", "tara_kg": 2500, "capacidad_m3": 0},
+    "22T1": {"nombre": "20' Tank", "tara_kg": 3600, "capacidad_m3": 21},
+    # 40 pies (12m)
+    "42G1": {"nombre": "40' Dry Standard", "tara_kg": 3800, "capacidad_m3": 67},
+    "42G0": {
+        "nombre": "40' Dry Standard (ventilado)",
+        "tara_kg": 3900,
+        "capacidad_m3": 67,
+    },
+    "45G1": {"nombre": "40' High Cube (HC)", "tara_kg": 3900, "capacidad_m3": 76},
+    "42R1": {"nombre": "40' Reefer", "tara_kg": 4500, "capacidad_m3": 60},
+    "45R1": {"nombre": "40' Reefer High Cube", "tara_kg": 4800, "capacidad_m3": 67},
+    "42U1": {"nombre": "40' Open Top", "tara_kg": 4000, "capacidad_m3": 65},
+    "42P1": {"nombre": "40' Flat Rack", "tara_kg": 4200, "capacidad_m3": 0},
+    # 45 pies
+    "L5G1": {"nombre": "45' High Cube", "tara_kg": 4800, "capacidad_m3": 86},
+}
+
+TIPO_CONTENEDOR_CHOICES = [
+    (codigo, f"{codigo} - {info['nombre']}")
+    for codigo, info in TIPOS_CONTENEDOR.items()
+]
+
+
+# ====== CONSTANTES PARA SELLOS ======
+TIPOS_SELLO = {
+    "NAVIERA": "Sello de Naviera (Bolt Seal)",
+    "ADUANAS": "Sello de Aduanas",
+    "SENASA": "Sello Veterinario/SENASA",
+    "EXPORTADOR": "Sello del Exportador",
+    "OTRO": "Otro tipo de sello",
+}
+
+
 # ====== VALIDADORES PERSONALIZADOS ======
+def validate_and_sanitize_sello(codigo):
+    """
+    Sanitiza y valida un código de sello individual.
+    - Elimina espacios
+    - Convierte a mayúsculas
+    - Solo permite alfanuméricos y guiones
+
+    Returns: código sanitizado
+    Raises: ValidationError si el código es inválido
+    """
+    if not codigo:
+        return ""
+
+    # Trim y eliminar espacios internos
+    codigo = codigo.strip().replace(" ", "")
+
+    # Mayúsculas
+    codigo = codigo.upper()
+
+    # Solo alfanuméricos y guiones
+    if not re.match(r"^[A-Z0-9\-]+$", codigo):
+        raise ValidationError(
+            f"El código de sello '{codigo}' contiene caracteres inválidos. "
+            "Solo se permiten letras, números y guiones."
+        )
+
+    # Longitud mínima
+    if len(codigo) < 4:
+        raise ValidationError(
+            f"El código de sello '{codigo}' es muy corto. Mínimo 4 caracteres."
+        )
+
+    return codigo
+
+
+def validate_sellos_format(value):
+    """
+    Valida el formato de múltiples sellos.
+    Formato: TIPO:CODIGO*|TIPO:CODIGO|...
+    El * indica el sello principal.
+
+    Ejemplo: NAVIERA:HL123456*|ADUANAS:AD789012
+    """
+    if not value:
+        raise ValidationError("Debe ingresar al menos un sello.")
+
+    value = value.strip()
+    sellos = value.split("|")
+    codigos_vistos = set()
+    tiene_principal = False
+
+    for sello in sellos:
+        sello = sello.strip()
+        if not sello:
+            continue
+
+        # Verificar formato TIPO:CODIGO
+        if ":" not in sello:
+            raise ValidationError(
+                f"Formato inválido en '{sello}'. Use TIPO:CODIGO (ej: NAVIERA:HL123456)"
+            )
+
+        partes = sello.split(":", 1)
+        if len(partes) != 2:
+            raise ValidationError(f"Formato inválido en '{sello}'.")
+
+        tipo, codigo = partes
+        tipo = tipo.upper().strip()
+
+        # Verificar tipo válido
+        if tipo not in TIPOS_SELLO:
+            tipos_validos = ", ".join(TIPOS_SELLO.keys())
+            raise ValidationError(
+                f"Tipo de sello '{tipo}' no válido. Tipos permitidos: {tipos_validos}"
+            )
+
+        # Verificar si es principal (tiene *)
+        es_principal = codigo.endswith("*")
+        if es_principal:
+            codigo = codigo[:-1]  # Quitar el *
+            if tiene_principal:
+                raise ValidationError(
+                    "Solo puede haber un sello principal (marcado con ⭐)."
+                )
+            tiene_principal = True
+
+        # Sanitizar código
+        codigo = validate_and_sanitize_sello(codigo)
+
+        # Verificar duplicados en este contenedor
+        if codigo in codigos_vistos:
+            raise ValidationError(f"El código de sello '{codigo}' está duplicado.")
+        codigos_vistos.add(codigo)
+
+    if not tiene_principal:
+        raise ValidationError(
+            "Debe marcar un sello como principal (sello de la Naviera)."
+        )
+
+
 def validate_document_size(value):
     """Valida que el archivo no supere los 5MB"""
     filesize = value.size
@@ -331,7 +477,6 @@ class Arribo(models.Model):
     TIPO_OPERACION_CHOICES = [
         ("DESCARGA", "Descarga (Importación)"),
         ("CARGA", "Carga (Exportación)"),
-        ("AMBOS", "Carga y Descarga"),
     ]
 
     ESTADO_CHOICES = [
@@ -389,28 +534,52 @@ class Arribo(models.Model):
         ]
 
     def clean(self):
+        from django.utils import timezone
+
+        # Validar ETD >= ETA
         if self.fecha_etd and self.fecha_eta:
             if self.fecha_etd < self.fecha_eta:
                 raise ValidationError(
                     {"fecha_etd": "La fecha ETD no puede ser anterior a la fecha ETA"}
                 )
 
-        # Validar que al menos un tipo de operación tenga contenedores
-        if self.tipo_operacion == "DESCARGA" and self.contenedores_descarga == 0:
-            raise ValidationError(
-                {"contenedores_descarga": "Debe especificar contenedores para descarga"}
-            )
-
-        if self.tipo_operacion == "CARGA" and self.contenedores_carga == 0:
-            raise ValidationError(
-                {"contenedores_carga": "Debe especificar contenedores para carga"}
-            )
-
-        if self.tipo_operacion == "AMBOS":
-            if self.contenedores_descarga == 0 and self.contenedores_carga == 0:
+        # Validar fecha_arribo_real no puede estar en el futuro
+        if self.fecha_arribo_real:
+            now = timezone.now()
+            if self.fecha_arribo_real > now:
                 raise ValidationError(
-                    "Debe especificar contenedores para descarga y/o carga"
+                    {
+                        "fecha_arribo_real": "La fecha de arribo real no puede estar en el futuro"
+                    }
                 )
+
+        # Validar fecha_arribo_real solo permitida si estado no es PROGRAMADO ni EN_RUTA
+        if self.fecha_arribo_real and self.estado in ["PROGRAMADO", "EN_RUTA"]:
+            raise ValidationError(
+                {
+                    "fecha_arribo_real": "No se puede establecer fecha de arribo real cuando el estado es PROGRAMADO o EN RUTA"
+                }
+            )
+
+        # Validar contenedores según tipo_operacion
+        # Solo se requiere que el campo correspondiente tenga valor > 0
+        if self.tipo_operacion == "DESCARGA":
+            if self.contenedores_descarga == 0:
+                raise ValidationError(
+                    {
+                        "contenedores_descarga": "Debe especificar contenedores para descarga"
+                    }
+                )
+            # Limpiar campo de carga (no aplica)
+            self.contenedores_carga = 0
+
+        elif self.tipo_operacion == "CARGA":
+            if self.contenedores_carga == 0:
+                raise ValidationError(
+                    {"contenedores_carga": "Debe especificar contenedores para carga"}
+                )
+            # Limpiar campo de descarga (no aplica)
+            self.contenedores_descarga = 0
 
     def __str__(self):
         return f"{self.buque.nombre} - {self.fecha_eta.strftime('%Y-%m-%d %H:%M')}"
@@ -456,10 +625,14 @@ class Contenedor(models.Model):
     bic_propietario = models.CharField(
         max_length=4,
         verbose_name="BIC Propietario",
-        help_text="Bureau International des Containers - Código del propietario",
+        help_text="Se extrae automáticamente del Código ISO (primeras 3 letras)",
+        blank=True,
     )
     tipo_tamaño = models.CharField(
-        max_length=10, verbose_name="Tipo/Tamaño", help_text="Ej: 20GP, 40HC, 40RF"
+        max_length=10,
+        choices=TIPO_CONTENEDOR_CHOICES,
+        verbose_name="Tipo/Tamaño",
+        help_text="Código ISO del tipo de contenedor",
     )
     peso_bruto_kg = models.DecimalField(
         max_digits=10,
@@ -475,7 +648,14 @@ class Contenedor(models.Model):
         verbose_name="Tara (kg)",
         help_text="Peso del contenedor vacío",
     )
-    numero_sello = models.CharField(max_length=30, verbose_name="Número de Sello")
+    # Campo de sellos con formato: TIPO:CODIGO*|TIPO:CODIGO
+    # El * indica sello principal. Tipos: NAVIERA, ADUANAS, SENASA, EXPORTADOR, OTRO
+    numero_sello = models.CharField(
+        max_length=500,
+        verbose_name="Sellos del Contenedor",
+        help_text="Ingrese los sellos del contenedor. El sello de Naviera es obligatorio.",
+        validators=[validate_sellos_format],
+    )
     mercancia_declarada = models.CharField(
         max_length=255, verbose_name="Mercancía Declarada"
     )
@@ -559,11 +739,143 @@ class Contenedor(models.Model):
         ]
 
     def clean(self):
+        # Auto-llenar BIC propietario desde el código ISO
+        if self.codigo_iso and len(self.codigo_iso) >= 3:
+            self.bic_propietario = self.codigo_iso[:3].upper()
+
+        # ====== VALIDACIÓN DE CAPACIDAD DEL ARRIBO ======
+        # No permitir registrar más contenedores de los declarados en el Arribo
+        if self.arribo and self.direccion:
+            # Contar contenedores ya registrados (excluyendo el actual si es edición)
+            contenedores_existentes = Contenedor.objects.filter(
+                arribo=self.arribo, direccion=self.direccion
+            )
+            if self.pk:  # Si es edición, excluir el registro actual
+                contenedores_existentes = contenedores_existentes.exclude(pk=self.pk)
+
+            cantidad_registrada = contenedores_existentes.count()
+
+            if self.direccion == "IMPORT":
+                capacidad_declarada = self.arribo.contenedores_descarga
+                tipo_texto = "importación (descarga)"
+            else:  # EXPORT
+                capacidad_declarada = self.arribo.contenedores_carga
+                tipo_texto = "exportación (carga)"
+
+            # Validar que no se exceda la capacidad
+            if cantidad_registrada >= capacidad_declarada:
+                raise ValidationError(
+                    {
+                        "direccion": f"El arribo '{self.arribo}' ya tiene {cantidad_registrada} de {capacidad_declarada} "
+                        f"contenedores de {tipo_texto} registrados. No se pueden agregar más."
+                    }
+                )
+
+        # Validación de peso bruto > tara
         if self.peso_bruto_kg and self.tara_kg:
             if self.peso_bruto_kg < self.tara_kg:
                 raise ValidationError(
                     {"peso_bruto_kg": "El peso bruto no puede ser menor que la tara"}
                 )
+
+        # Validación de fecha_retiro_transitario según dirección
+        if self.fecha_retiro_transitario and self.arribo:
+            if self.direccion == "IMPORT":
+                # Import: fecha de retiro no puede ser anterior al ETA
+                if (
+                    self.arribo.fecha_eta
+                    and self.fecha_retiro_transitario < self.arribo.fecha_eta
+                ):
+                    raise ValidationError(
+                        {
+                            "fecha_retiro_transitario": f"La fecha de retiro no puede ser anterior a la llegada del buque (ETA: {self.arribo.fecha_eta.strftime('%d/%m/%Y %H:%M')})"
+                        }
+                    )
+            elif self.direccion == "EXPORT":
+                # Export: fecha de entrega no puede ser posterior al ETD (cut-off)
+                if (
+                    self.arribo.fecha_etd
+                    and self.fecha_retiro_transitario > self.arribo.fecha_etd
+                ):
+                    raise ValidationError(
+                        {
+                            "fecha_retiro_transitario": f"La fecha de entrega no puede ser posterior a la salida del buque (ETD: {self.arribo.fecha_etd.strftime('%d/%m/%Y %H:%M')})"
+                        }
+                    )
+
+        # Validar duplicidad de sellos con otros contenedores activos
+        if self.numero_sello:
+            mis_codigos = self.get_codigos_sello()
+            # Buscar contenedores con sellos duplicados (excluyendo este)
+            contenedores = Contenedor.objects.exclude(pk=self.pk)
+            for contenedor in contenedores:
+                otros_codigos = contenedor.get_codigos_sello()
+                duplicados = mis_codigos.intersection(otros_codigos)
+                if duplicados:
+                    raise ValidationError(
+                        {
+                            "numero_sello": f"🚨 ALERTA: El sello '{', '.join(duplicados)}' ya está registrado "
+                            f"en el contenedor {contenedor.codigo_iso}. "
+                            "Esto podría indicar un error de tipeo o un intento de fraude."
+                        }
+                    )
+
+    def get_codigos_sello(self):
+        """Extrae todos los códigos de sello como un set (sin tipo ni marcador principal)"""
+        if not self.numero_sello:
+            return set()
+
+        codigos = set()
+        for sello in self.numero_sello.split("|"):
+            if ":" in sello:
+                _, codigo = sello.split(":", 1)
+                codigo = codigo.replace("*", "").strip().upper()
+                if codigo:
+                    codigos.add(codigo)
+        return codigos
+
+    def get_sello_principal(self):
+        """Retorna el código del sello principal (marcado con *)"""
+        if not self.numero_sello:
+            return None
+
+        for sello in self.numero_sello.split("|"):
+            if "*" in sello and ":" in sello:
+                _, codigo = sello.split(":", 1)
+                return codigo.replace("*", "").strip().upper()
+        return None
+
+    def get_sellos_lista(self):
+        """
+        Retorna lista de diccionarios con info de cada sello.
+        Útil para templates y APIs.
+        """
+        if not self.numero_sello:
+            return []
+
+        sellos = []
+        for sello in self.numero_sello.split("|"):
+            sello = sello.strip()
+            if ":" not in sello:
+                continue
+            tipo, codigo = sello.split(":", 1)
+            es_principal = codigo.endswith("*")
+            codigo = codigo.replace("*", "").strip().upper()
+            sellos.append(
+                {
+                    "tipo": tipo.strip().upper(),
+                    "tipo_display": TIPOS_SELLO.get(tipo.strip().upper(), tipo),
+                    "codigo": codigo,
+                    "es_principal": es_principal,
+                }
+            )
+        return sellos
+
+    @property
+    def sello_principal_display(self):
+        """Para mostrar en listados: solo el sello principal"""
+        principal = self.get_sello_principal()
+        return principal if principal else "Sin sello principal"
 
     @property
     def esta_liberado_aduana(self):
