@@ -114,6 +114,65 @@ class AprobacionAduaneraForm(forms.ModelForm):
         )
 
 
+class AprobacionFinancieraForm(forms.ModelForm):
+    """Formulario para aprobación financiera con multi-select de servicios"""
+
+    # Campo de servicios como CheckboxSelectMultiple
+    servicios_facturados = forms.MultipleChoiceField(
+        choices=AprobacionFinanciera.SERVICIOS_DISPONIBLES,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "servicios-checkboxes"}),
+        label="Servicios Facturados",
+        help_text="Seleccione todos los servicios incluidos en la factura",
+    )
+
+    class Meta:
+        model = AprobacionFinanciera
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Solo mostrar contenedores que NO tienen aprobación financiera registrada
+        contenedores_con_factura = AprobacionFinanciera.objects.values_list(
+            "contenedor_id", flat=True
+        )
+        self.fields["contenedor"].queryset = Contenedor.objects.exclude(
+            id__in=contenedores_con_factura
+        ).select_related("arribo", "transitario")
+
+        # Si es edición, incluir el contenedor actual
+        if self.instance.pk:
+            self.fields["contenedor"].queryset = Contenedor.objects.filter(
+                id=self.instance.contenedor_id
+            )
+            # Cargar servicios seleccionados
+            if self.instance.servicios_facturados:
+                self.initial["servicios_facturados"] = (
+                    self.instance.servicios_facturados
+                )
+
+        # Agregar placeholder al número de factura
+        self.fields["numero_factura"].widget.attrs.update(
+            {
+                "placeholder": "Ej: F001-12345678",
+                "style": "text-transform: uppercase;",
+            }
+        )
+
+        # Monto mínimo 0
+        self.fields["monto_usd"].widget.attrs.update(
+            {
+                "min": "0",
+                "step": "0.01",
+            }
+        )
+
+    def clean_servicios_facturados(self):
+        """Convertir a lista para guardar en JSONField"""
+        servicios = self.cleaned_data.get("servicios_facturados", [])
+        return list(servicios)
+
+
 # ====== BUQUE ADMIN ======
 @admin.register(Buque)
 class BuqueAdmin(admin.ModelAdmin):
@@ -607,9 +666,9 @@ class ContenedorAdmin(admin.ModelAdmin):
         aduana_ok = (
             hasattr(obj, "aprobacion_aduanera") and obj.aprobacion_aduanera.aprobado
         )
-        financiera_ok = (
-            hasattr(obj, "aprobacion_financiera") and obj.aprobacion_financiera.aprobado
-        )
+        financiera_ok = hasattr(
+            obj, "aprobacion_financiera"
+        ) and obj.aprobacion_financiera.estado_financiero in ["PAGADA", "CREDITO"]
         transitario_ok = (
             hasattr(obj, "aprobacion_pago_transitario")
             and obj.aprobacion_pago_transitario.pago_realizado
@@ -723,9 +782,17 @@ class ContenedorAdmin(admin.ModelAdmin):
         else:
             aprobaciones.append(("🛃 Aduana", "PENDIENTE"))
 
-        # Aprobación Financiera
+        # Aprobación Financiera (ahora usa estado_financiero)
         if hasattr(obj, "aprobacion_financiera"):
-            estado = "APROBADO" if obj.aprobacion_financiera.aprobado else "PENDIENTE"
+            ef = obj.aprobacion_financiera.estado_financiero
+            if ef == "PAGADA":
+                estado = "PAGADO"
+            elif ef == "CREDITO":
+                estado = "CRÉDITO"
+            elif ef == "ANULADA":
+                estado = "ANULADA"
+            else:
+                estado = "PENDIENTE"
             aprobaciones.append(("💰 Financiera", estado))
         else:
             aprobaciones.append(("💰 Financiera", "PENDIENTE"))
@@ -748,6 +815,8 @@ class ContenedorAdmin(admin.ModelAdmin):
                 "RECHAZADO": "red",
                 "PENDIENTE": "orange",
                 "PAGADO": "green",
+                "CRÉDITO": "#17a2b8",
+                "ANULADA": "#dc3545",
             }.get(estado, "gray")
             html += f'<span style="background-color: {color}; color: white; padding: 2px 6px; border-radius: 3px; margin: 2px; display: inline-block; font-size: 11px;">{nombre}: {estado}</span><br>'
         html += "</div>"
@@ -761,9 +830,9 @@ class ContenedorAdmin(admin.ModelAdmin):
         aduana_ok = (
             hasattr(obj, "aprobacion_aduanera") and obj.aprobacion_aduanera.aprobado
         )
-        financiera_ok = (
-            hasattr(obj, "aprobacion_financiera") and obj.aprobacion_financiera.aprobado
-        )
+        financiera_ok = hasattr(
+            obj, "aprobacion_financiera"
+        ) and obj.aprobacion_financiera.estado_financiero in ["PAGADA", "CREDITO"]
         transitario_ok = (
             hasattr(obj, "aprobacion_pago_transitario")
             and obj.aprobacion_pago_transitario.pago_realizado
@@ -790,10 +859,12 @@ class ContenedorAdmin(admin.ModelAdmin):
                 hasattr(contenedor, "aprobacion_aduanera")
                 and contenedor.aprobacion_aduanera.aprobado
             )
-            financiera_ok = (
-                hasattr(contenedor, "aprobacion_financiera")
-                and contenedor.aprobacion_financiera.aprobado
-            )
+            financiera_ok = hasattr(
+                contenedor, "aprobacion_financiera"
+            ) and contenedor.aprobacion_financiera.estado_financiero in [
+                "PAGADA",
+                "CREDITO",
+            ]
             transitario_ok = (
                 hasattr(contenedor, "aprobacion_pago_transitario")
                 and contenedor.aprobacion_pago_transitario.pago_realizado
@@ -824,8 +895,13 @@ class ContenedorAdmin(admin.ModelAdmin):
 
             if not hasattr(contenedor, "aprobacion_financiera"):
                 pendientes.append("Financiera")
-            elif not contenedor.aprobacion_financiera.aprobado:
-                pendientes.append("Financiera (no aprobada)")
+            elif contenedor.aprobacion_financiera.estado_financiero not in [
+                "PAGADA",
+                "CREDITO",
+            ]:
+                pendientes.append(
+                    f"Financiera ({contenedor.aprobacion_financiera.get_estado_financiero_display()})"
+                )
 
             if not hasattr(contenedor, "aprobacion_pago_transitario"):
                 pendientes.append("Pago Transitario")
@@ -1067,29 +1143,57 @@ class AprobacionAduaneraAdmin(admin.ModelAdmin):
 # ====== APROBACIÓN FINANCIERA ADMIN ======
 @admin.register(AprobacionFinanciera)
 class AprobacionFinancieraAdmin(admin.ModelAdmin):
+    form = AprobacionFinancieraForm
     list_display = [
         "contenedor",
-        "aprobado",
+        "estado_coloreado",
         "numero_factura",
         "monto_usd",
+        "servicios_display",
         "fecha_emision",
         "fecha_pago",
         "tiene_documento",
     ]
-    list_filter = ["aprobado", "fecha_emision", "fecha_pago"]
+    list_filter = ["estado_financiero", "fecha_emision", "fecha_pago"]
     search_fields = ["contenedor__codigo_iso", "numero_factura"]
     readonly_fields = ["created_at", "updated_at", "preview_documento"]
-    date_hierarchy = "fecha_pago"
+    date_hierarchy = "fecha_emision"
     autocomplete_fields = ["contenedor"]
 
     fieldsets = (
         ("Contenedor", {"fields": ("contenedor",)}),
         (
-            "Factura",
-            {"fields": ("numero_factura", "servicios_facturados", "monto_usd")},
+            "Datos de Factura",
+            {
+                "fields": ("numero_factura", "monto_usd"),
+                "description": "Formato factura electrónica: F001-12345678 (F=Factura, B=Boleta)",
+            },
         ),
-        ("Fechas", {"fields": ("fecha_emision", "fecha_vencimiento", "fecha_pago")}),
-        ("Estado", {"fields": ("aprobado", "observaciones")}),
+        (
+            "Servicios Facturados",
+            {
+                "fields": ("servicios_facturados",),
+                "description": "Seleccione todos los servicios incluidos en esta factura",
+            },
+        ),
+        (
+            "Fechas",
+            {
+                "fields": ("fecha_emision", "fecha_vencimiento", "fecha_pago"),
+                "description": "La fecha de pago solo está disponible cuando el estado es 'Pagada'",
+            },
+        ),
+        (
+            "Estado Financiero",
+            {
+                "fields": ("estado_financiero", "observaciones"),
+                "description": (
+                    "🟡 Pendiente: Bloquea Gate Pass | "
+                    "🟢 Pagada / 🔵 Crédito: Liberan Gate Pass | "
+                    "🔴 Anulada: Factura inválida"
+                ),
+            },
+        ),
         (
             "Factura Adjunta",
             {
@@ -1102,6 +1206,57 @@ class AprobacionFinancieraAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+    class Media:
+        js = ("js/admin_aprobacion_financiera.js",)
+        css = {"all": ("css/admin_financiera.css",)}
+
+    def estado_coloreado(self, obj):
+        """Muestra el estado financiero con colores"""
+        colores = {
+            "PENDIENTE": ("#856404", "#fff3cd"),  # Amarillo
+            "PAGADA": ("#155724", "#d4edda"),  # Verde
+            "CREDITO": ("#004085", "#cce5ff"),  # Azul
+            "ANULADA": ("#721c24", "#f8d7da"),  # Rojo
+        }
+        iconos = {
+            "PENDIENTE": "🟡",
+            "PAGADA": "🟢",
+            "CREDITO": "🔵",
+            "ANULADA": "🔴",
+        }
+        textos = {
+            "PENDIENTE": "Pendiente",
+            "PAGADA": "Pagada",
+            "CREDITO": "Crédito",
+            "ANULADA": "Anulada",
+        }
+        color, bg = colores.get(obj.estado_financiero, ("#000", "#fff"))
+        icono = iconos.get(obj.estado_financiero, "")
+        texto = textos.get(obj.estado_financiero, obj.estado_financiero)
+        return format_html(
+            '<span style="color: {}; background-color: {}; padding: 3px 8px; '
+            'border-radius: 3px; font-weight: bold;">{} {}</span>',
+            color,
+            bg,
+            icono,
+            texto,
+        )
+
+    estado_coloreado.short_description = "Estado"
+
+    def servicios_display(self, obj):
+        """Muestra el número de servicios facturados"""
+        if not obj.servicios_facturados:
+            return format_html('<span style="color: #999;">0</span>')
+        cantidad = len(obj.servicios_facturados)
+        return format_html(
+            '<span style="background: #17a2b8; color: white; padding: 3px 10px; '
+            'border-radius: 12px; font-weight: bold;">{}</span>',
+            cantidad,
+        )
+
+    servicios_display.short_description = "Servicios"
 
     def tiene_documento(self, obj):
         """Indica si tiene documento adjunto"""

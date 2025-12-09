@@ -1191,6 +1191,32 @@ class AprobacionAduanera(models.Model):
 class AprobacionFinanciera(models.Model):
     """Registro de facturas emitidas al cliente por contenedor"""
 
+    ESTADO_FINANCIERO_CHOICES = [
+        ("PENDIENTE", "🟡 Emitida / Pendiente"),
+        ("PAGADA", "🟢 Pagada"),
+        ("CREDITO", "🔵 Crédito Aprobado"),
+        ("ANULADA", "🔴 Anulada"),
+    ]
+
+    # Servicios tarifados predefinidos
+    SERVICIOS_DISPONIBLES = [
+        ("USO_MUELLE", "Uso de Muelle"),
+        ("ENERGIA_REEFER", "Energía Reefer"),
+        ("ALMACENAJE", "Almacenaje"),
+        ("PESAJE", "Pesaje"),
+        ("TRACCION", "Tracción"),
+        ("MANIPULEO", "Manipuleo"),
+        ("CONSOLIDACION", "Consolidación/Desconsolidación"),
+        ("INSPECCION", "Inspección"),
+        ("DOCUMENTACION", "Documentación"),
+        ("SEGURO", "Seguro de Carga"),
+        ("CUSTODIA", "Custodia"),
+        ("LAVADO", "Lavado de Contenedor"),
+        ("REPARACION", "Reparación"),
+        ("FUMIGACION", "Fumigación"),
+        ("OTROS", "Otros Servicios"),
+    ]
+
     contenedor = models.OneToOneField(
         Contenedor,
         on_delete=models.PROTECT,
@@ -1198,24 +1224,39 @@ class AprobacionFinanciera(models.Model):
         verbose_name="Contenedor",
     )
     numero_factura = models.CharField(
-        max_length=30, unique=True, verbose_name="Número de Factura"
+        max_length=30,
+        unique=True,
+        verbose_name="Número de Factura",
+        help_text="Formato factura electrónica: F001-12345678 o B001-12345678",
     )
     monto_usd = models.DecimalField(
-        max_digits=12, decimal_places=2, verbose_name="Monto (USD)"
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Monto (USD)",
+        help_text="Monto total en dólares americanos (mínimo 0)",
     )
-    servicios_facturados = models.CharField(
-        max_length=120, verbose_name="Servicios Facturados"
+    servicios_facturados = models.JSONField(
+        default=list,
+        verbose_name="Servicios Facturados",
+        help_text="Seleccione los servicios incluidos en la factura",
     )
     fecha_emision = models.DateField(verbose_name="Fecha de Emisión")
     fecha_vencimiento = models.DateField(
         null=True, blank=True, verbose_name="Fecha de Vencimiento"
     )
-    fecha_pago = models.DateField(null=True, blank=True, verbose_name="Fecha de Pago")
+    fecha_pago = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Pago",
+        help_text="Solo disponible cuando el estado es 'Pagada'",
+    )
     observaciones = models.TextField(blank=True, verbose_name="Observaciones")
-    aprobado = models.BooleanField(
-        default=False,
-        verbose_name="Aprobado",
-        help_text="Indica si la factura fue aprobada internamente",
+    estado_financiero = models.CharField(
+        max_length=20,
+        choices=ESTADO_FINANCIERO_CHOICES,
+        default="PENDIENTE",
+        verbose_name="Estado Financiero",
+        help_text="🟡 Pendiente bloquea Gate Pass | 🟢 Pagada y 🔵 Crédito liberan Gate Pass",
     )
     documento_adjunto = models.FileField(
         upload_to="documentos/facturas/%Y/%m/",
@@ -1241,13 +1282,58 @@ class AprobacionFinanciera(models.Model):
         ]
 
     def clean(self):
+        import re
+
+        errors = {}
+
+        # === Validación del Número de Factura (formato electrónico) ===
+        if self.numero_factura:
+            numero_limpio = self.numero_factura.strip().upper()
+            # Patrón: F001-12345678 o B001-12345678 (Factura o Boleta)
+            patron_factura = r"^[FB]\d{3}-\d{8}$"
+            if not re.match(patron_factura, numero_limpio):
+                errors["numero_factura"] = (
+                    "Formato inválido. Debe ser F001-12345678 o B001-12345678. "
+                    "F=Factura, B=Boleta, seguido de serie (3 dígitos) y correlativo (8 dígitos)"
+                )
+            else:
+                self.numero_factura = numero_limpio
+
+        # === Validación del Monto (>= 0) ===
+        if self.monto_usd is not None and self.monto_usd < 0:
+            errors["monto_usd"] = "El monto no puede ser negativo"
+
+        # === Validación Fecha Vencimiento >= Fecha Emisión ===
         if self.fecha_vencimiento and self.fecha_emision:
             if self.fecha_vencimiento < self.fecha_emision:
-                raise ValidationError(
-                    {
-                        "fecha_vencimiento": "La fecha de vencimiento no puede ser anterior a la fecha de emisión"
-                    }
+                errors["fecha_vencimiento"] = (
+                    "La fecha de vencimiento no puede ser anterior a la fecha de emisión"
                 )
+
+        # === Validación condicional de Fecha de Pago ===
+        if self.estado_financiero == "PAGADA":
+            if not self.fecha_pago:
+                errors["fecha_pago"] = (
+                    "Debe especificar la fecha de pago cuando el estado es 'Pagada'"
+                )
+            # Documento adjunto obligatorio cuando está pagada
+            if not self.documento_adjunto:
+                errors["documento_adjunto"] = (
+                    "Debe adjuntar la factura como comprobante de pago"
+                )
+        else:
+            # Limpiar fecha de pago si no está pagada
+            self.fecha_pago = None
+
+        # === Validar que servicios_facturados sea una lista ===
+        if self.servicios_facturados:
+            if not isinstance(self.servicios_facturados, list):
+                errors["servicios_facturados"] = "Debe seleccionar al menos un servicio"
+            elif len(self.servicios_facturados) == 0:
+                errors["servicios_facturados"] = "Debe seleccionar al menos un servicio"
+
+        if errors:
+            raise ValidationError(errors)
 
     @property
     def esta_vencida(self):
@@ -1258,8 +1344,23 @@ class AprobacionFinanciera(models.Model):
             return False
         return timezone.now().date() > self.fecha_vencimiento
 
+    @property
+    def permite_gate_pass(self):
+        """Indica si el estado financiero permite liberar el Gate Pass"""
+        return self.estado_financiero in ["PAGADA", "CREDITO"]
+
+    def get_servicios_display(self):
+        """Retorna los servicios facturados como texto legible"""
+        if not self.servicios_facturados:
+            return "-"
+        servicios_dict = dict(self.SERVICIOS_DISPONIBLES)
+        nombres = [servicios_dict.get(s, s) for s in self.servicios_facturados]
+        return ", ".join(nombres)
+
     def __str__(self):
-        return f"Factura {self.numero_factura} - {self.contenedor.codigo_iso}"
+        estado_dict = dict(self.ESTADO_FINANCIERO_CHOICES)
+        estado = estado_dict.get(self.estado_financiero, self.estado_financiero)
+        return f"Factura {self.numero_factura} - {estado}"
 
 
 # ====== APROBACIÓN PAGO TRANSITARIO (1-1 opcional) ======
@@ -1344,6 +1445,11 @@ class AprobacionPagoTransitario(models.Model):
             raise ValidationError({"fecha_pago": "Debe especificar la fecha de pago"})
         if not self.monto_pagado:
             raise ValidationError({"monto_pagado": "Debe especificar el monto pagado"})
+        # Documento adjunto obligatorio como comprobante de pago
+        if not self.documento_adjunto:
+            raise ValidationError(
+                {"documento_adjunto": "Debe adjuntar el comprobante de pago"}
+            )
 
     def __str__(self):
         estado = "Pagado" if self.pago_realizado else "Pendiente"

@@ -168,12 +168,26 @@
                         Aprobación Financiera
                     </h3>
                     {% if aprobacion_financiera %}
-                        {% if aprobacion_financiera.aprobado %}
+                        {% if aprobacion_financiera.estado_financiero == "PAGADA" %}
                         <span class="badge badge-success gap-1">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                             </svg>
-                            Aprobado
+                            Pagado
+                        </span>
+                        {% elif aprobacion_financiera.estado_financiero == "CREDITO" %}
+                        <span class="badge badge-info gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Crédito
+                        </span>
+                        {% elif aprobacion_financiera.estado_financiero == "ANULADA" %}
+                        <span class="badge badge-error gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Anulada
                         </span>
                         {% elif aprobacion_financiera.esta_vencida %}
                         <span class="badge badge-error gap-1">
