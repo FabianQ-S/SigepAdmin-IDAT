@@ -173,6 +173,73 @@ class AprobacionFinancieraForm(forms.ModelForm):
         return list(servicios)
 
 
+# ====== FORMULARIO PARA EVENTOS DE CONTENEDOR ======
+class EventoContenedorForm(forms.ModelForm):
+    """
+    Formulario para eventos con validaciones y filtrado inteligente.
+    - Filtra tipos de evento según dirección del contenedor
+    - Auto-completa ubicación para eventos locales
+    - Vincula tipo_evento con medio_transporte
+    - Protege tipo_evento de eventos ya guardados
+    """
+
+    class Meta:
+        model = EventoContenedor
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Obtener contenedor de la instancia si está disponible
+        contenedor = None
+        if hasattr(self, "_parent_contenedor"):
+            contenedor = self._parent_contenedor
+        elif (
+            self.instance
+            and hasattr(self.instance, "contenedor_id")
+            and self.instance.contenedor_id
+        ):
+            try:
+                contenedor = self.instance.contenedor
+            except Contenedor.DoesNotExist:
+                pass
+
+        # Obtener el tipo de evento actual (si existe)
+        tipo_evento_actual = None
+        es_evento_existente = self.instance and self.instance.pk
+        if es_evento_existente and self.instance.tipo_evento:
+            tipo_evento_actual = self.instance.tipo_evento
+            # PROTECCIÓN: Deshabilitar cambio de tipo_evento para eventos ya guardados
+            # Esto evita que el filtrado de choices sobrescriba el valor
+            self.fields["tipo_evento"].disabled = True
+            self.fields[
+                "tipo_evento"
+            ].help_text = "El tipo de evento no se puede cambiar una vez guardado"
+
+        if contenedor:
+            # Filtrar eventos según dirección del contenedor
+            direccion = getattr(contenedor, "direccion", None)
+            if direccion == "IMPORT":
+                eventos_permitidos = list(EventoContenedor.EVENTOS_IMPORTACION)
+            elif direccion == "EXPORT":
+                eventos_permitidos = list(EventoContenedor.EVENTOS_EXPORTACION)
+            else:
+                eventos_permitidos = [
+                    c[0] for c in EventoContenedor.TIPO_EVENTO_CHOICES
+                ]
+
+            # IMPORTANTE: Siempre incluir el evento actual para evitar que se pierda
+            if tipo_evento_actual and tipo_evento_actual not in eventos_permitidos:
+                eventos_permitidos.insert(0, tipo_evento_actual)
+
+            # Actualizar choices del campo tipo_evento
+            self.fields["tipo_evento"].choices = [
+                (code, label)
+                for code, label in EventoContenedor.TIPO_EVENTO_CHOICES
+                if code in eventos_permitidos
+            ]
+
+
 # ====== BUQUE ADMIN ======
 @admin.register(Buque)
 class BuqueAdmin(admin.ModelAdmin):
@@ -384,6 +451,7 @@ class ContenedorInline(admin.TabularInline):
 # ====== INLINE PARA EVENTOS EN CONTENEDOR ======
 class EventoContenedorInline(admin.TabularInline):
     model = EventoContenedor
+    form = EventoContenedorForm
     extra = 1
     fields = [
         "tipo_evento",
@@ -394,6 +462,7 @@ class EventoContenedorInline(admin.TabularInline):
         "buque",
         "medio_transporte",
         "referencia_viaje",
+        "notas",
     ]
     readonly_fields = []
     can_delete = True
@@ -402,6 +471,31 @@ class EventoContenedorInline(admin.TabularInline):
     classes = ["collapse"]
     verbose_name = "Evento de Tracking"
     verbose_name_plural = "Timeline de Eventos"
+
+    def get_readonly_fields(self, request, obj=None):
+        """
+        Hacer tipo_evento readonly para eventos ya guardados.
+        Esto previene que el filtrado de choices sobrescriba el valor existente.
+        """
+        # obj aquí es el Contenedor padre, no el EventoContenedor
+        # La lógica de readonly por instancia se maneja en el formset
+        return self.readonly_fields
+
+    def get_formset(self, request, obj=None, **kwargs):
+        """
+        Pasar el contenedor padre al formulario para filtrar eventos
+        según dirección IMPORT/EXPORT
+        """
+        FormSet = super().get_formset(request, obj, **kwargs)
+        # Guardar referencia al contenedor en el formset class
+        FormSet._parent_contenedor = obj
+        return FormSet
+
+    def get_extra(self, request, obj=None, **kwargs):
+        """Menos formularios vacíos si ya hay eventos"""
+        if obj and obj.eventos.exists():
+            return 1
+        return 2
 
 
 # ====== ARRIBO ADMIN ======
@@ -570,7 +664,12 @@ class ContenedorAdmin(admin.ModelAdmin):
     inlines = [EventoContenedorInline]
 
     class Media:
-        js = ("js/admin_sellos_chips.js", "js/admin_contenedor_form.js")
+        css = {"all": ("css/admin_eventos.css",)}
+        js = (
+            "js/admin_sellos_chips.js",
+            "js/admin_contenedor_form.js",
+            "js/admin_eventos_inline.js",
+        )
 
     def get_readonly_fields(self, request, obj=None):
         """Bloquear campos estructurales después de crear el Contenedor"""

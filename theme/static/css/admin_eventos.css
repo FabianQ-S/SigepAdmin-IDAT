@@ -1,0 +1,97 @@
+/**
+ * Estilos para Timeline de Eventos en Contenedor
+ * Corrige problemas de colores en campos autocomplete (Select2)
+ */
+
+/* === ESTILOS PARA FILAS DE EVENTOS === */
+
+/* Fila con evento marítimo - Azul oscuro */
+.evento-maritimo .related-widget-wrapper,
+.evento-maritimo .select2-container,
+.evento-maritimo .select2-selection,
+.evento-maritimo .select2-selection--single,
+.evento-maritimo .select2-selection__rendered {
+  background-color: #112840 !important;
+  color: #ffffff !important;
+  border-color: #2196f3 !important;
+}
+
+.evento-maritimo .select2-selection__arrow {
+  background-color: #112840 !important;
+}
+
+.evento-maritimo .select2-selection__placeholder {
+  color: #aaaaaa !important;
+}
+
+/* Fila con evento de alerta - Rojo oscuro */
+.evento-alerta .related-widget-wrapper,
+.evento-alerta .select2-container,
+.evento-alerta .select2-selection,
+.evento-alerta .select2-selection--single,
+.evento-alerta .select2-selection__rendered {
+  background-color: #3d1c1c !important;
+  color: #ffffff !important;
+  border-color: #f44336 !important;
+}
+
+.evento-alerta .select2-selection__arrow {
+  background-color: #3d1c1c !important;
+}
+
+.evento-alerta .select2-selection__placeholder {
+  color: #aaaaaa !important;
+}
+
+/* Fila con evento de liberación - Verde oscuro */
+.evento-liberacion .related-widget-wrapper,
+.evento-liberacion .select2-container,
+.evento-liberacion .select2-selection,
+.evento-liberacion .select2-selection--single,
+.evento-liberacion .select2-selection__rendered {
+  background-color: #143316 !important;
+  color: #ffffff !important;
+  border-color: #4caf50 !important;
+}
+
+.evento-liberacion .select2-selection__arrow {
+  background-color: #143316 !important;
+}
+
+.evento-liberacion .select2-selection__placeholder {
+  color: #aaaaaa !important;
+}
+
+/* === LEYENDA DE EVENTOS === */
+.eventos-leyenda {
+  display: flex;
+  gap: 20px;
+  margin: 10px 0;
+  padding: 8px 15px;
+  background: #2a2a2a;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #fff;
+}
+
+/* === ALERTA DE BLOQUEO === */
+.alerta-bloqueo {
+  background-color: #f44336;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: bold;
+  animation: pulse-alert 1.5s infinite;
+}
+
+@keyframes pulse-alert {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}

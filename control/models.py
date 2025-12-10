@@ -724,6 +724,12 @@ class Contenedor(models.Model):
         verbose_name="ETA Destino Final",
         help_text="Fecha estimada de llegada al destino final",
     )
+    # === Campo de bloqueo por eventos ===
+    bloqueado_por_evento = models.BooleanField(
+        default=False,
+        verbose_name="Bloqueado por Evento",
+        help_text="Se activa automáticamente por eventos como Customs Hold, Damaged o Inspection",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -739,6 +745,18 @@ class Contenedor(models.Model):
         ]
 
     def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # Validación de campos obligatorios primero
+        errors = {}
+        if not self.arribo_id:
+            errors["arribo"] = "Debe seleccionar un arribo"
+        if not self.direccion:
+            errors["direccion"] = "Debe seleccionar la dirección (Import/Export)"
+
+        if errors:
+            raise ValidationError(errors)
+
         # Auto-llenar BIC propietario desde el código ISO
         if self.codigo_iso and len(self.codigo_iso) >= 3:
             self.bic_propietario = self.codigo_iso[:3].upper()
@@ -923,25 +941,25 @@ class EventoContenedor(models.Model):
     """Registro de eventos/movimientos del contenedor para tracking"""
 
     TIPO_EVENTO_CHOICES = [
-        # Eventos en origen
-        ("GATE_OUT_EMPTY", "Gate Out Empty - Salida vacío"),
-        ("GATE_IN_FULL", "Gate In Full - Ingreso cargado"),
-        ("LOADED", "Loaded - Cargado al buque"),
-        # Eventos en tránsito
-        ("DEPARTED", "Departed - Zarpe del buque"),
-        ("IN_TRANSIT", "In Transit - En tránsito"),
-        ("TRANSSHIPMENT", "Transshipment - Transbordo"),
-        ("ARRIVED", "Arrived - Arribo del buque"),
-        # Eventos en destino
-        ("DISCHARGED", "Discharged - Descargado del buque"),
-        ("GATE_OUT_FULL", "Gate Out Full - Salida cargado"),
-        ("DELIVERED", "Delivered - Entregado"),
-        ("GATE_IN_EMPTY", "Gate In Empty - Devolución vacío"),
-        # Eventos especiales
-        ("CUSTOMS_HOLD", "Customs Hold - Retención aduanera"),
-        ("CUSTOMS_RELEASED", "Customs Released - Liberado aduana"),
-        ("INSPECTION", "Inspection - En inspección"),
-        ("DAMAGED", "Damaged - Daño reportado"),
+        # ══════ INICIO: Preparación y carga ══════
+        ("GATE_OUT_EMPTY", "1. Gate Out Empty - Salida vacío (retiro)"),
+        ("GATE_IN_FULL", "2. Gate In Full - Ingreso cargado"),
+        ("LOADED", "3. Loaded - Cargado al buque"),
+        # ══════ INTERMEDIO: Tránsito marítimo ══════
+        ("DEPARTED", "4. Departed - Zarpe del buque"),
+        ("IN_TRANSIT", "5. In Transit - En tránsito"),
+        ("TRANSSHIPMENT", "6. Transshipment - Transbordo"),
+        ("ARRIVED", "7. Arrived - Arribo del buque"),
+        # ══════ FINAL: Descarga y entrega ══════
+        ("DISCHARGED", "8. Discharged - Descargado del buque"),
+        ("GATE_OUT_FULL", "9. Gate Out Full - Salida cargado"),
+        ("DELIVERED", "10. Delivered - Entregado al cliente"),
+        ("GATE_IN_EMPTY", "11. Gate In Empty - Devolución vacío"),
+        # ══════ EXCEPCIONES: Eventos especiales ══════
+        ("CUSTOMS_HOLD", "⚠️ Customs Hold - Retención aduanera"),
+        ("CUSTOMS_RELEASED", "✅ Customs Released - Liberado aduana"),
+        ("INSPECTION", "🔍 Inspection - En inspección"),
+        ("DAMAGED", "❌ Damaged - Daño reportado"),
     ]
 
     MEDIO_TRANSPORTE_CHOICES = [
@@ -969,14 +987,15 @@ class EventoContenedor(models.Model):
     # Ubicación del evento
     ubicacion_puerto = models.CharField(
         max_length=120,
-        verbose_name="Puerto",
-        help_text="Puerto donde ocurrió el evento",
+        verbose_name="Lugar",
+        help_text="Puerto, terminal, almacén o dirección del evento",
     )
     ubicacion_ciudad = models.CharField(
         max_length=120,
         null=True,
         blank=True,
         verbose_name="Ciudad",
+        help_text="Ciudad (no aplica para eventos en tránsito marítimo)",
     )
     ubicacion_pais = models.CharField(
         max_length=60,
@@ -1014,6 +1033,117 @@ class EventoContenedor(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Eventos que son locales (auto-llenan ubicación del puerto local)
+    EVENTOS_LOCALES = [
+        "GATE_IN_FULL",
+        "GATE_IN_EMPTY",
+        "GATE_OUT_FULL",
+        "GATE_OUT_EMPTY",
+        "DISCHARGED",
+        "LOADED",
+        "INSPECTION",
+        "CUSTOMS_HOLD",
+        "CUSTOMS_RELEASED",
+        "DELIVERED",
+    ]
+
+    # Eventos marítimos (requieren buque)
+    EVENTOS_MARITIMOS = [
+        "LOADED",
+        "DEPARTED",
+        "IN_TRANSIT",
+        "TRANSSHIPMENT",
+        "ARRIVED",
+        "DISCHARGED",
+    ]
+
+    # Eventos terrestres (camión/ferrocarril)
+    EVENTOS_TERRESTRES = [
+        "GATE_IN_FULL",
+        "GATE_IN_EMPTY",
+        "GATE_OUT_FULL",
+        "GATE_OUT_EMPTY",
+        "DELIVERED",
+    ]
+
+    # Eventos para Importación
+    EVENTOS_IMPORTACION = [
+        "ARRIVED",
+        "DISCHARGED",
+        "CUSTOMS_HOLD",
+        "CUSTOMS_RELEASED",
+        "INSPECTION",
+        "GATE_OUT_FULL",
+        "DELIVERED",
+        "GATE_IN_EMPTY",
+        "DAMAGED",
+    ]
+
+    # Eventos para Exportación
+    EVENTOS_EXPORTACION = [
+        "GATE_OUT_EMPTY",
+        "GATE_IN_FULL",
+        "CUSTOMS_HOLD",
+        "CUSTOMS_RELEASED",
+        "INSPECTION",
+        "LOADED",
+        "DEPARTED",
+        "IN_TRANSIT",
+        "DAMAGED",
+    ]
+
+    # Eventos de alerta (bloquean Gate Pass)
+    EVENTOS_BLOQUEO = ["CUSTOMS_HOLD", "DAMAGED", "INSPECTION"]
+
+    # Eventos que liberan bloqueo
+    EVENTOS_LIBERACION = ["CUSTOMS_RELEASED"]
+
+    # ══════ SECUENCIA LÓGICA DE EVENTOS ══════
+    # Define el orden numérico de cada evento en el flujo normal
+    # Los eventos especiales (CUSTOMS_HOLD, etc.) no tienen número - pueden ocurrir en cualquier momento
+    SECUENCIA_EVENTOS = {
+        "GATE_OUT_EMPTY": 1,
+        "GATE_IN_FULL": 2,
+        "LOADED": 3,
+        "DEPARTED": 4,
+        "IN_TRANSIT": 5,
+        "TRANSSHIPMENT": 6,
+        "ARRIVED": 7,
+        "DISCHARGED": 8,
+        "GATE_OUT_FULL": 9,
+        "DELIVERED": 10,
+        "GATE_IN_EMPTY": 11,
+        # Eventos especiales - sin número, pueden ocurrir en cualquier momento
+        "CUSTOMS_HOLD": None,
+        "CUSTOMS_RELEASED": None,
+        "INSPECTION": None,
+        "DAMAGED": None,
+    }
+
+    # Prerrequisitos: qué eventos deben existir antes de poder registrar otro
+    PRERREQUISITOS_EVENTOS = {
+        # Para cargar al buque, debe haber ingresado al puerto
+        "LOADED": ["GATE_IN_FULL"],
+        # Para zarpar, debe estar cargado
+        "DEPARTED": ["LOADED"],
+        # Para estar en tránsito, debe haber zarpado
+        "IN_TRANSIT": ["DEPARTED"],
+        # Para transbordo, debe estar en tránsito o haber llegado
+        "TRANSSHIPMENT": ["IN_TRANSIT", "ARRIVED"],
+        # Para arribar, debe haber zarpado o estar en tránsito
+        "ARRIVED": ["DEPARTED", "IN_TRANSIT", "TRANSSHIPMENT"],
+        # Para descargar, debe haber arribado
+        "DISCHARGED": ["ARRIVED"],
+        # Para salir cargado, debe estar descargado y liberado
+        "GATE_OUT_FULL": ["DISCHARGED"],
+        # Para entregar, debe haber salido del puerto
+        "DELIVERED": ["GATE_OUT_FULL"],
+        # Para devolver vacío, debe haberse entregado
+        "GATE_IN_EMPTY": ["DELIVERED"],
+        # Liberación aduanera requiere retención previa
+        "CUSTOMS_RELEASED": ["CUSTOMS_HOLD"],
+    }
+
     class Meta:
         verbose_name = "Evento de Contenedor"
         verbose_name_plural = "Eventos de Contenedores"
@@ -1023,6 +1153,154 @@ class EventoContenedor(models.Model):
             models.Index(fields=["tipo_evento"]),
             models.Index(fields=["fecha_hora"]),
         ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+
+        # Validación cronológica: el evento no puede ser anterior al último evento
+        if self.contenedor_id and self.fecha_hora:
+            ultimo_evento = (
+                EventoContenedor.objects.filter(contenedor_id=self.contenedor_id)
+                .exclude(pk=self.pk)
+                .order_by("-fecha_hora")
+                .first()
+            )
+            if ultimo_evento and self.fecha_hora < ultimo_evento.fecha_hora:
+                errors["fecha_hora"] = (
+                    f"Cronología incoherente: Este evento no puede ser anterior al último evento "
+                    f"({ultimo_evento.get_tipo_evento_display()} - {ultimo_evento.fecha_hora.strftime('%d/%m/%Y %H:%M')})"
+                )
+
+        # ══════ VALIDACIÓN DE SECUENCIA LÓGICA ══════
+        if self.contenedor_id and self.tipo_evento:
+            eventos_existentes = set(
+                EventoContenedor.objects.filter(contenedor_id=self.contenedor_id)
+                .exclude(pk=self.pk)
+                .values_list("tipo_evento", flat=True)
+            )
+
+            # 1. Verificar prerrequisitos
+            if self.tipo_evento in self.PRERREQUISITOS_EVENTOS:
+                prerrequisitos = self.PRERREQUISITOS_EVENTOS[self.tipo_evento]
+                # Al menos uno de los prerrequisitos debe existir
+                if not any(prereq in eventos_existentes for prereq in prerrequisitos):
+                    prereq_nombres = [
+                        dict(self.TIPO_EVENTO_CHOICES).get(p, p) for p in prerrequisitos
+                    ]
+                    errors["tipo_evento"] = (
+                        f"Secuencia inválida: Para registrar '{self.get_tipo_evento_display()}' "
+                        f"primero debe existir alguno de estos eventos: {', '.join(prereq_nombres)}"
+                    )
+
+            # 2. Verificar que no se salten eventos en la secuencia numérica
+            num_evento_nuevo = self.SECUENCIA_EVENTOS.get(self.tipo_evento)
+            if num_evento_nuevo:  # Solo para eventos numerados
+                for evento_existente in eventos_existentes:
+                    num_existente = self.SECUENCIA_EVENTOS.get(evento_existente)
+                    if num_existente and num_existente > num_evento_nuevo:
+                        # Hay un evento posterior ya registrado
+                        nombre_existente = dict(self.TIPO_EVENTO_CHOICES).get(
+                            evento_existente, evento_existente
+                        )
+                        errors["tipo_evento"] = (
+                            f"Secuencia inválida: No puede registrar '{self.get_tipo_evento_display()}' "
+                            f"porque ya existe un evento posterior: '{nombre_existente}'"
+                        )
+                        break
+
+            # 3. Evitar eventos duplicados (excepto los especiales que pueden repetirse)
+            eventos_no_repetibles = [
+                "GATE_OUT_EMPTY",
+                "GATE_IN_FULL",
+                "LOADED",
+                "DEPARTED",
+                "ARRIVED",
+                "DISCHARGED",
+                "GATE_OUT_FULL",
+                "DELIVERED",
+                "GATE_IN_EMPTY",
+            ]
+            if (
+                self.tipo_evento in eventos_no_repetibles
+                and self.tipo_evento in eventos_existentes
+            ):
+                errors["tipo_evento"] = (
+                    f"Este evento ya fue registrado para este contenedor. "
+                    f"'{self.get_tipo_evento_display()}' solo puede ocurrir una vez."
+                )
+
+        # Validar que eventos marítimos tengan buque
+        if self.tipo_evento in self.EVENTOS_MARITIMOS and not self.buque_id:
+            errors["buque"] = "Los eventos marítimos requieren seleccionar un buque"
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        # ══════ AUTO-ASIGNACIÓN DE CAMPOS SEGÚN TIPO DE EVENTO ══════
+        # Esto soluciona el problema de campos deshabilitados por JS que no se envían
+
+        # Mapeo de eventos a medio de transporte requerido
+        MEDIO_POR_EVENTO = {
+            # Eventos marítimos → VESSEL
+            "LOADED": "VESSEL",
+            "DEPARTED": "VESSEL",
+            "IN_TRANSIT": "VESSEL",
+            "TRANSSHIPMENT": "VESSEL",
+            "ARRIVED": "VESSEL",
+            "DISCHARGED": "VESSEL",
+            # Eventos terrestres → TRUCK
+            "GATE_OUT_EMPTY": "TRUCK",
+            "GATE_IN_FULL": "TRUCK",
+            "GATE_OUT_FULL": "TRUCK",
+            "GATE_IN_EMPTY": "TRUCK",
+            "DELIVERED": "TRUCK",
+            # Eventos especiales → mantener el valor actual o TRUCK por defecto
+        }
+
+        # Asignar medio de transporte automáticamente según tipo de evento
+        if self.tipo_evento in MEDIO_POR_EVENTO:
+            self.medio_transporte = MEDIO_POR_EVENTO[self.tipo_evento]
+        elif not self.medio_transporte:
+            # Para eventos especiales sin medio asignado, usar TRUCK por defecto
+            self.medio_transporte = "TRUCK"
+
+        # Limpiar campos que no aplican para eventos terrestres
+        if self.tipo_evento in self.EVENTOS_TERRESTRES:
+            self.buque = None
+            self.referencia_viaje = ""
+
+        # Limpiar ciudad para eventos en tránsito (aguas internacionales)
+        if self.tipo_evento == "IN_TRANSIT":
+            self.ubicacion_ciudad = ""
+
+        super().save(*args, **kwargs)
+        # Actualizar estado de bloqueo del contenedor después de guardar
+        self._actualizar_bloqueo_contenedor()
+
+    def _actualizar_bloqueo_contenedor(self):
+        """Actualiza el estado de bloqueo del contenedor según eventos"""
+        if not self.contenedor_id:
+            return
+
+        # Verificar si hay eventos de bloqueo activos sin liberación posterior
+        eventos = EventoContenedor.objects.filter(
+            contenedor_id=self.contenedor_id
+        ).order_by("fecha_hora")
+
+        bloqueado = False
+        for evento in eventos:
+            if evento.tipo_evento in self.EVENTOS_BLOQUEO:
+                bloqueado = True
+            elif evento.tipo_evento in self.EVENTOS_LIBERACION:
+                bloqueado = False
+
+        # Actualizar el contenedor
+        Contenedor.objects.filter(pk=self.contenedor_id).update(
+            bloqueado_por_evento=bloqueado
+        )
 
     def __str__(self):
         return f"{self.contenedor.codigo_iso} - {self.get_tipo_evento_display()} - {self.fecha_hora.strftime('%Y-%m-%d %H:%M')}"
