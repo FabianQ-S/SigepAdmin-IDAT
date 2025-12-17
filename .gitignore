@@ -53,7 +53,7 @@ Thumbs.db
 .directory
 
 # VSCode
-.vscode/
+
 *.code-workspace
 
 # Coverage reports

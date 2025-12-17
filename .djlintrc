@@ -1,0 +1,5 @@
+{
+    "profile": "django",
+    "format_css": true,
+    "format_js": true
+}

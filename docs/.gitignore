@@ -1,3 +1,0 @@
-# Ignorar todo en la carpeta docs para no subirlo a git
-*
-!.gitignore
