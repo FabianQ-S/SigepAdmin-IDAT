@@ -186,6 +186,13 @@ class EventoContenedorForm(forms.ModelForm):
     class Meta:
         model = EventoContenedor
         fields = "__all__"
+        widgets = {
+            "notas": forms.Textarea(attrs={
+                "rows": 2,
+                "style": "resize: vertical; min-height: 40px;",
+                "placeholder": "Observaciones adicionales (opcional)",
+            }),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -204,20 +211,8 @@ class EventoContenedorForm(forms.ModelForm):
             except Contenedor.DoesNotExist:
                 pass
 
-        # Obtener el tipo de evento actual (si existe)
-        tipo_evento_actual = None
-        es_evento_existente = self.instance and self.instance.pk
-        if es_evento_existente and self.instance.tipo_evento:
-            tipo_evento_actual = self.instance.tipo_evento
-            # PROTECCIÓN: Deshabilitar cambio de tipo_evento para eventos ya guardados
-            # Esto evita que el filtrado de choices sobrescriba el valor
-            self.fields["tipo_evento"].disabled = True
-            self.fields[
-                "tipo_evento"
-            ].help_text = "El tipo de evento no se puede cambiar una vez guardado"
-
+        # Filtrar choices según dirección del contenedor
         if contenedor:
-            # Filtrar eventos según dirección del contenedor
             direccion = getattr(contenedor, "direccion", None)
             if direccion == "IMPORT":
                 eventos_permitidos = list(EventoContenedor.EVENTOS_IMPORTACION)
@@ -227,10 +222,6 @@ class EventoContenedorForm(forms.ModelForm):
                 eventos_permitidos = [
                     c[0] for c in EventoContenedor.TIPO_EVENTO_CHOICES
                 ]
-
-            # IMPORTANTE: Siempre incluir el evento actual para evitar que se pierda
-            if tipo_evento_actual and tipo_evento_actual not in eventos_permitidos:
-                eventos_permitidos.insert(0, tipo_evento_actual)
 
             # Actualizar choices del campo tipo_evento
             self.fields["tipo_evento"].choices = [
@@ -464,38 +455,21 @@ class EventoContenedorInline(admin.TabularInline):
         "referencia_viaje",
         "notas",
     ]
-    readonly_fields = []
-    can_delete = True
     ordering = ["-fecha_hora"]
     autocomplete_fields = ["buque"]
     classes = ["collapse"]
     verbose_name = "Evento de Tracking"
     verbose_name_plural = "Timeline de Eventos"
 
-    def get_readonly_fields(self, request, obj=None):
-        """
-        Hacer tipo_evento readonly para eventos ya guardados.
-        Esto previene que el filtrado de choices sobrescriba el valor existente.
-        """
-        # obj aquí es el Contenedor padre, no el EventoContenedor
-        # La lógica de readonly por instancia se maneja en el formset
-        return self.readonly_fields
-
     def get_formset(self, request, obj=None, **kwargs):
-        """
-        Pasar el contenedor padre al formulario para filtrar eventos
-        según dirección IMPORT/EXPORT
-        """
+        """Pasar el contenedor padre al formulario para filtrar eventos"""
         FormSet = super().get_formset(request, obj, **kwargs)
-        # Guardar referencia al contenedor en el formset class
         FormSet._parent_contenedor = obj
         return FormSet
 
     def get_extra(self, request, obj=None, **kwargs):
-        """Menos formularios vacíos si ya hay eventos"""
-        if obj and obj.eventos.exists():
-            return 1
-        return 2
+        """Siempre mostrar solo 1 formulario vacío para nuevo evento"""
+        return 1
 
 
 # ====== ARRIBO ADMIN ======

@@ -292,9 +292,49 @@
 
       // ====== 1. MEDIO DE TRANSPORTE ======
       if (medioTransporteSelect) {
-        if (config.medioTransporte.valor) {
+        // Filtrar opciones según tipo de evento
+        const opcionesMaritimas = ["VESSEL"];
+        const opcionesTerrestres = ["TRUCK", "RAIL", "BARGE"];
+        
+        // Restaurar todas las opciones primero
+        const todasLasOpciones = [
+          { value: "VESSEL", text: "Buque" },
+          { value: "TRUCK", text: "Camión" },
+          { value: "RAIL", text: "Ferrocarril" },
+          { value: "BARGE", text: "Barcaza" },
+        ];
+        
+        // Determinar opciones permitidas
+        let opcionesPermitidas;
+        if (config.buque.habilitado) {
+          // Evento marítimo - solo Buque
+          opcionesPermitidas = opcionesMaritimas;
+        } else {
+          // Evento terrestre - sin Buque
+          opcionesPermitidas = opcionesTerrestres;
+        }
+        
+        // Guardar valor actual
+        const valorActual = medioTransporteSelect.value;
+        
+        // Limpiar y reconstruir opciones
+        medioTransporteSelect.innerHTML = "";
+        todasLasOpciones.forEach((opt) => {
+          if (opcionesPermitidas.includes(opt.value)) {
+            const option = document.createElement("option");
+            option.value = opt.value;
+            option.textContent = opt.text;
+            medioTransporteSelect.appendChild(option);
+          }
+        });
+        
+        // Restaurar valor si es válido, sino usar el por defecto
+        if (opcionesPermitidas.includes(valorActual)) {
+          medioTransporteSelect.value = valorActual;
+        } else if (config.medioTransporte.valor) {
           medioTransporteSelect.value = config.medioTransporte.valor;
         }
+        
         setFieldState(
           medioTransporteSelect,
           config.medioTransporte.bloqueado,
@@ -304,21 +344,57 @@
         );
       }
 
-      // ====== 2. BUQUE ======
+      // ====== 2. BUQUE (Autocomplete Select2) ======
       if (buqueSelect) {
+        const buqueCell = buqueSelect.closest("td");
+        const buqueWrapper = buqueSelect.closest(".related-widget-wrapper");
+        
+        if (!config.buque.habilitado) {
+          // Limpiar valor del buque
+          if (buqueSelect.tagName === "SELECT") {
+            buqueSelect.value = "";
+            // Disparar evento para actualizar Select2
+            buqueSelect.dispatchEvent(new Event("change"));
+          } else if (buqueSelect.tagName === "INPUT") {
+            buqueSelect.value = "";
+          }
+          
+          // Bloquear toda la celda visualmente
+          if (buqueCell) {
+            buqueCell.style.opacity = "0.3";
+            buqueCell.style.pointerEvents = "none";
+            buqueCell.title = "No aplica para eventos terrestres";
+          }
+          
+          // Ocultar botones de Select2 (+, ✏️, 🔍)
+          if (buqueWrapper) {
+            const actionButtons = buqueWrapper.querySelectorAll("a");
+            actionButtons.forEach((btn) => {
+              btn.style.display = "none";
+            });
+          }
+        } else {
+          // Habilitar campo
+          if (buqueCell) {
+            buqueCell.style.opacity = "1";
+            buqueCell.style.pointerEvents = "";
+            buqueCell.title = "";
+          }
+          
+          // Mostrar botones
+          if (buqueWrapper) {
+            const actionButtons = buqueWrapper.querySelectorAll("a");
+            actionButtons.forEach((btn) => {
+              btn.style.display = "";
+            });
+          }
+        }
+        
         setFieldState(
           buqueSelect,
           !config.buque.habilitado,
           !config.buque.habilitado ? "No aplica para este evento" : ""
         );
-        if (config.buque.limpiar && buqueSelect.tagName === "SELECT") {
-          buqueSelect.value = "";
-        }
-        // Ajustar opacidad de la celda
-        const buqueCell = buqueSelect.closest("td");
-        if (buqueCell) {
-          buqueCell.style.opacity = config.buque.habilitado ? "1" : "0.5";
-        }
       }
 
       // ====== 3. REFERENCIA DE VIAJE ======

@@ -999,7 +999,9 @@ class EventoContenedor(models.Model):
     )
     ubicacion_pais = models.CharField(
         max_length=60,
+        blank=True,
         verbose_name="País",
+        help_text="Se auto-rellena con 'Aguas Internacionales' para eventos en tránsito",
     )
     # Transporte asociado
     buque = models.ForeignKey(
@@ -1158,6 +1160,7 @@ class EventoContenedor(models.Model):
         from django.core.exceptions import ValidationError
 
         errors = {}
+        tiene_error_cronologico = False
 
         # Validación cronológica: el evento no puede ser anterior al último evento
         if self.contenedor_id and self.fecha_hora:
@@ -1172,9 +1175,11 @@ class EventoContenedor(models.Model):
                     f"Cronología incoherente: Este evento no puede ser anterior al último evento "
                     f"({ultimo_evento.get_tipo_evento_display()} - {ultimo_evento.fecha_hora.strftime('%d/%m/%Y %H:%M')})"
                 )
+                tiene_error_cronologico = True
 
         # ══════ VALIDACIÓN DE SECUENCIA LÓGICA ══════
-        if self.contenedor_id and self.tipo_evento:
+        # Solo validar secuencia si NO hay error cronológico (evita mensajes confusos duplicados)
+        if self.contenedor_id and self.tipo_evento and not tiene_error_cronologico:
             eventos_existentes = set(
                 EventoContenedor.objects.filter(contenedor_id=self.contenedor_id)
                 .exclude(pk=self.pk)
@@ -1235,6 +1240,18 @@ class EventoContenedor(models.Model):
         if self.tipo_evento in self.EVENTOS_MARITIMOS and not self.buque_id:
             errors["buque"] = "Los eventos marítimos requieren seleccionar un buque"
 
+        # Validar que eventos terrestres NO tengan buque ni medio=VESSEL
+        if self.tipo_evento in self.EVENTOS_TERRESTRES:
+            if self.buque_id:
+                errors["buque"] = (
+                    f"El evento '{self.get_tipo_evento_display()}' es terrestre y no puede tener un buque asignado"
+                )
+            if self.medio_transporte == "VESSEL":
+                errors["medio_transporte"] = (
+                    f"El evento '{self.get_tipo_evento_display()}' es terrestre. "
+                    f"Use Camión, Ferrocarril o Barcaza en su lugar."
+                )
+
         if errors:
             raise ValidationError(errors)
 
@@ -1272,9 +1289,11 @@ class EventoContenedor(models.Model):
             self.buque = None
             self.referencia_viaje = ""
 
-        # Limpiar ciudad para eventos en tránsito (aguas internacionales)
+        # Auto-rellenar ubicación para eventos en tránsito (aguas internacionales)
         if self.tipo_evento == "IN_TRANSIT":
             self.ubicacion_ciudad = ""
+            if not self.ubicacion_pais:
+                self.ubicacion_pais = "Aguas Internacionales"
 
         super().save(*args, **kwargs)
         # Actualizar estado de bloqueo del contenedor después de guardar
