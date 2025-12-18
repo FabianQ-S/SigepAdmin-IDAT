@@ -1081,16 +1081,23 @@ class EventoContenedor(models.Model):
         "DAMAGED",
     ]
 
-    # Eventos para Exportación
+    # Eventos para Exportación (ciclo completo: 1-11 + especiales)
     EVENTOS_EXPORTACION = [
         "GATE_OUT_EMPTY",
         "GATE_IN_FULL",
-        "CUSTOMS_HOLD",
-        "CUSTOMS_RELEASED",
-        "INSPECTION",
         "LOADED",
         "DEPARTED",
         "IN_TRANSIT",
+        "TRANSSHIPMENT",
+        "ARRIVED",
+        "DISCHARGED",
+        "GATE_OUT_FULL",
+        "DELIVERED",
+        "GATE_IN_EMPTY",
+        # Especiales
+        "CUSTOMS_HOLD",
+        "CUSTOMS_RELEASED",
+        "INSPECTION",
         "DAMAGED",
     ]
 
@@ -1186,25 +1193,45 @@ class EventoContenedor(models.Model):
                 .values_list("tipo_evento", flat=True)
             )
 
-            # 1. Verificar prerrequisitos
+            # 1. Verificar prerrequisitos (considerando dirección del contenedor)
             if self.tipo_evento in self.PRERREQUISITOS_EVENTOS:
                 prerrequisitos = self.PRERREQUISITOS_EVENTOS[self.tipo_evento]
-                # Al menos uno de los prerrequisitos debe existir
-                if not any(prereq in eventos_existentes for prereq in prerrequisitos):
-                    prereq_nombres = [
-                        dict(self.TIPO_EVENTO_CHOICES).get(p, p) for p in prerrequisitos
+                direccion = self.contenedor.direccion
+                
+                # Para IMPORT: filtrar prerrequisitos que sean válidos para importación
+                # Esto permite que ARRIVED sea el primer evento sin requerir DEPARTED
+                if direccion == "IMPORT":
+                    prerrequisitos_validos = [
+                        p for p in prerrequisitos if p in self.EVENTOS_IMPORTACION
                     ]
-                    errors["tipo_evento"] = (
-                        f"Secuencia inválida: Para registrar '{self.get_tipo_evento_display()}' "
-                        f"primero debe existir alguno de estos eventos: {', '.join(prereq_nombres)}"
-                    )
+                else:
+                    prerrequisitos_validos = prerrequisitos
+                
+                # Solo validar si quedan prerrequisitos válidos para esta dirección
+                if prerrequisitos_validos:
+                    if not any(prereq in eventos_existentes for prereq in prerrequisitos_validos):
+                        prereq_nombres = [
+                            dict(self.TIPO_EVENTO_CHOICES).get(p, p) for p in prerrequisitos_validos
+                        ]
+                        errors["tipo_evento"] = (
+                            f"Secuencia inválida: Para registrar '{self.get_tipo_evento_display()}' "
+                            f"primero debe existir alguno de estos eventos: {', '.join(prereq_nombres)}"
+                        )
 
             # 2. Verificar que no se salten eventos en la secuencia numérica
+            # Para IMPORT: la secuencia válida inicia en 7 (ARRIVED)
+            # Para EXPORT: la secuencia válida inicia en 1 (GATE_OUT_EMPTY)
             num_evento_nuevo = self.SECUENCIA_EVENTOS.get(self.tipo_evento)
-            if num_evento_nuevo:  # Solo para eventos numerados
+            direccion = self.contenedor.direccion
+            
+            # Definir el número mínimo de secuencia según dirección
+            num_minimo = 7 if direccion == "IMPORT" else 1
+            
+            if num_evento_nuevo and num_evento_nuevo >= num_minimo:
                 for evento_existente in eventos_existentes:
                     num_existente = self.SECUENCIA_EVENTOS.get(evento_existente)
-                    if num_existente and num_existente > num_evento_nuevo:
+                    # Solo comparar con eventos que son válidos para esta dirección
+                    if num_existente and num_existente >= num_minimo and num_existente > num_evento_nuevo:
                         # Hay un evento posterior ya registrado
                         nombre_existente = dict(self.TIPO_EVENTO_CHOICES).get(
                             evento_existente, evento_existente
@@ -1251,6 +1278,24 @@ class EventoContenedor(models.Model):
                     f"El evento '{self.get_tipo_evento_display()}' es terrestre. "
                     f"Use Camión, Ferrocarril o Barcaza en su lugar."
                 )
+
+        # ══════ VALIDACIÓN DE EVENTOS SEGÚN DIRECCIÓN DEL CONTENEDOR ══════
+        if self.contenedor_id and self.tipo_evento:
+            direccion = self.contenedor.direccion
+            
+            if direccion == "IMPORT":
+                # Importación: solo eventos 7-11 + especiales
+                if self.tipo_evento not in self.EVENTOS_IMPORTACION:
+                    errors["tipo_evento"] = (
+                        f"El evento '{self.get_tipo_evento_display()}' no es válido para contenedores de IMPORTACIÓN. "
+                        f"Solo se permiten: Arrived, Discharged, Gate Out Full, Delivered, Gate In Empty y eventos especiales."
+                    )
+            elif direccion == "EXPORT":
+                # Exportación: todos los eventos
+                if self.tipo_evento not in self.EVENTOS_EXPORTACION:
+                    errors["tipo_evento"] = (
+                        f"El evento '{self.get_tipo_evento_display()}' no es válido para contenedores de EXPORTACIÓN."
+                    )
 
         if errors:
             raise ValidationError(errors)
