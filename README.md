@@ -7,8 +7,12 @@ Sistema de administración portuaria desarrollado con Django para la gestión de
 
 ## 📘 Desarrollado por
 
--**Fabián Quintanilla**
--**Fabrizio Jimenez**
+**Fabián Quintanilla**
+
+
+
+**Fabrizio Jimenez**
+
 
 ### 🆔 Institución Educativa
 - **IDAT** - Sede: Petit Thouars
